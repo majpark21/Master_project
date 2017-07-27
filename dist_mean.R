@@ -47,5 +47,5 @@ euclids <- dist_mean(Cora, "Image_Metadata_Site", "RealTime", "Ratio", "objNuc_T
 #plot(Cora[Image_Metadata_Site==0 & objNuc_TrackObjects_Label==3, Ratio], type = "b")
 #plot(Cora[Image_Metadata_Site==0 & objNuc_TrackObjects_Label==17, Ratio], type = "b")
 
-p <- ggplot(euclids$euclid, aes(euclid_to_mean)) + geom_histogram() + facet_grid(. ~ Image_Metadata_Site) + scale_x_continuous(limits = c(0, 15))
+p <- ggplot(euclids$euclid, aes(y=euclid_to_mean)) + geom_boxplot() + facet_grid(. ~ Image_Metadata_Site) + scale_x_continuous(limits = c(0, 15))
 p
