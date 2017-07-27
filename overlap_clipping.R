@@ -15,7 +15,7 @@ overlap_clipping <- function(data, condition, label, measure){
 
   # Number of rows for data table initialization, sum of number of pairs in each condition
   nber_row <- 0
-  for(i in 0:7){
+  for(i in unique(data[, get(condition)])){
     nber_row <- nber_row + choose(length(unique(data[.(i), get(label)])), 2)
   }
   
