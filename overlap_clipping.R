@@ -4,13 +4,15 @@
 # 4) Look at this distribution, skew towards large overlaps is a sign of synchronization
 
 overlap_clipping <- function(data, condition, label, measure){
+  # Compute overlap between all pairs of clipped trajectories in each condition
+  
   # data: a data table containing CLIPPED trajectories
   # condition: column name that fully define an experimental condition; MUST BE INTEGERS
   # measure: column name with clipped trajectories
   # label: column name with label of individual objects in each condition (cell label); LABELS MUST BE INTEGERS
   
   setkeyv(data, c(condition, label))
-  # Compute overlap between all pairs of clipped trajectories in each condition
+
   # Number of rows for data table initialization, sum of number of pairs in each condition
   nber_row <- 0
   for(i in 0:7){
