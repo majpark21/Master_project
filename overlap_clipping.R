@@ -1,3 +1,48 @@
+# 1) Get moving average for each trajectory
+# 2) Clip trajectory according to its positions compared to its own moving average (step function 0 or 1)
+# 3) Within each condition compute overlap of clipped trajectories for each trajectory pair
+# 4) Look at this distribution, skew towards large overlaps is a sign of synchronization
+
+overlap_clipping <- function(data, condition, label, measure){
+  # data: a data table containing CLIPPED trajectories
+  # condition: column name that fully define an experimental condition; MUST BE INTEGERS
+  # measure: column name with clipped trajectories
+  # label: column name with label of individual objects in each condition (cell label); LABELS MUST BE INTEGERS
+  
+  setkeyv(data, c(condition, label))
+  # Compute overlap between all pairs of clipped trajectories in each condition
+  # Number of rows for data table initialization, sum of number of pairs in each condition
+  nber_row <- 0
+  for(i in 0:7){
+    nber_row <- nber_row + choose(length(unique(data[.(i), get(label)])), 2)
+  }
+  
+  # One row = one pair in one condition; set column types
+  out <- data.table(matrix(ncol = 4, nrow = nber_row))
+  colnames(out) <- c(condition, "Label1", "Label2", "Overlap")
+  out <- out[, lapply(.SD, as.integer)]
+  out[, Overlap := as.numeric(Overlap)]
+  
+  curr_row <- 1L
+  # Loop condition
+  for(i in unique(data[, get(condition)])){
+    labels <- unique(data[.(i), get(label)])
+    # Loop 1st label
+    for(j in 1:(length(labels)-1)){
+      # Loop 2nd label
+      for(k in (j+1):length(labels)){
+        set(out, curr_row, 1L, i)
+        set(out, curr_row, 2L, labels[j])
+        set(out, curr_row, 3L, labels[k])
+        set(out, curr_row, 4L, overlap(data[.(i, labels[j]), get(measure)], data[.(i, labels[k]), get(measure)]))
+        curr_row <- curr_row + 1L
+      }
+    }
+  }
+  return(out)
+}
+
+
 rollex <- function(x, k = 5){
   # Extended rolling mean, fill the extremeties with linear approximation
   require(zoo)
@@ -39,6 +84,8 @@ overlap <- function(x, y){
 }
 
 
+#####
+
 library(zoo)
 library(data.table)
 library(ggplot2)
@@ -47,7 +94,7 @@ Cora[, Ratio := objCyto_Intensity_MeanIntensity_imErkCorrOrig / objNuc_Intensity
 setkey(Cora, Image_Metadata_Site, objNuc_TrackObjects_Label)
 
 ClipRatio <- Cora[, .(clip_ratio = wrap_clip(Ratio)), by = .(Image_Metadata_Site, objNuc_TrackObjects_Label)]
-ClipRatio$RealTime <- Cora$RealTime
+Overlap <- overlap_clipping(data = ClipRatio, condition = "Image_Metadata_Site", label = "objNuc_TrackObjects_Label", measure = "clip_ratio")
 
 ##### 
 #Plot example of a trajectory, rolling mean and clipped trajectory
@@ -56,6 +103,7 @@ ClipRatio$RealTime <- Cora$RealTime
 #lines(Cora[Image_Metadata_Site == 5 & objNuc_TrackObjects_Label == 2, Ratio])
 #lines(rollex(Cora[Image_Metadata_Site == 5 & objNuc_TrackObjects_Label == 2, Ratio]), col = 'red')
 
+#ClipRatio$RealTime <- Cora$RealTime
 #p <- ggplot(ClipRatio[.(7,2)], aes(x=RealTime, y=clip_ratio)) + geom_step(alpha = 1) + theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()); p
 #####
 
@@ -64,35 +112,9 @@ overlap(ClipRatio[.(7,1), clip_ratio], ClipRatio[.(7,42), clip_ratio])
 cor(ClipRatio[.(7,3), clip_ratio],ClipRatio[.(7,42), clip_ratio], method = "k")
 
 
-# Compute overlap between all pairs of clipped trajectories in each condition
-nber_row <- 0
-for(i in 0:7){
-  nber_row <- nber_row + choose(length(unique(ClipRatio[.(i), objNuc_TrackObjects_Label])), 2)
-}
-
-# One row = one pair in one condition; set column types
-Overlap <- data.table(matrix(ncol = 4, nrow = nber_row))
-colnames(Overlap) <- c("Image_Metadata_Site", "Label1", "Label2", "Overlap")
-Overlap <- Overlap[, lapply(.SD, as.integer)]
-Overlap[, Overlap := as.numeric(Overlap)]
-
-curr_row <- 1L
-# Loop condition
-for(i in 0:7){
-  labels <- unique(ClipRatio[.(i), objNuc_TrackObjects_Label])
-  # Loop 1st label
-  for(j in 1:(length(labels)-1)){
-    # Loop 2nd label
-    for(k in (j+1):length(labels)){
-      set(Overlap, curr_row, 1L, i)
-      set(Overlap, curr_row, 2L, labels[j])
-      set(Overlap, curr_row, 3L, labels[k])
-      set(Overlap, curr_row, 4L, overlap(ClipRatio[.(i, labels[j]), clip_ratio], ClipRatio[.(i, labels[k]), clip_ratio]))
-      curr_row <- curr_row + 1L
-    }
-  }
-}
-
 
 p <- ggplot(Overlap, aes(x = Image_Metadata_Site, y = Overlap)) + geom_boxplot(aes(group  = Image_Metadata_Site))
 p
+
+
+temp <- overlap_clipping(data = ClipRatio, condition = "Image_Metadata_Site", label = "objNuc_TrackObjects_Label", measure = "clip_ratio")
