@@ -20,11 +20,11 @@ dist_mean <- function(data, condition, tcol, measure, label, return.mean = F){
   dat <- merge(data[, c(condition, label, tcol, measure), with = F], means, by = c(condition, tcol))
   
   # 2) Euclidean distance between each trajectory and the mean one
-  distances <- dat[, .(sq.dist = (get(measure) - Average)^2) , by = .(get(condition), get(label))]
+  distances <- dat[, .(sq_dist = (get(measure) - Average)^2) , by = .(get(condition), get(label))]
   colnames(distances)[1:2] <- c(condition, label)
   
-  euclid <- distances[, sqrt(sum(sq.dist)), by = .(get(condition), get(label))]
-  colnames(euclid) <- c(condition, label, "euclid.to.mean")
+  euclid <- distances[, sqrt(sum(sq_dist)), by = .(get(condition), get(label))]
+  colnames(euclid) <- c(condition, label, "euclid_to_mean")
   
   if(return.mean){
     return(list(means = means, euclid = euclid))
@@ -47,5 +47,5 @@ euclids <- dist_mean(Cora, "Image_Metadata_Site", "RealTime", "Ratio", "objNuc_T
 #plot(Cora[Image_Metadata_Site==0 & objNuc_TrackObjects_Label==3, Ratio], type = "b")
 #plot(Cora[Image_Metadata_Site==0 & objNuc_TrackObjects_Label==17, Ratio], type = "b")
 
-p <- ggplot(euclids$euclid, aes(euclid.to.mean)) + geom_histogram() + facet_grid(. ~ Image_Metadata_Site) + scale_x_continuous(limits = c(0, 15))
+p <- ggplot(euclids$euclid, aes(euclid_to_mean)) + geom_histogram() + facet_grid(. ~ Image_Metadata_Site) + scale_x_continuous(limits = c(0, 15))
 p
