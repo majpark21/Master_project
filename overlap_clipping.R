@@ -43,7 +43,7 @@ library(zoo)
 library(data.table)
 library(ggplot2)
 Cora <- fread("C:/Users/pixel/Dropbox/Marc-Antoine/data/set1-Coralie/tCoursesSelected.csv")
-Cora[, Ratio := objCyto_Intensity_MeanIntensity_imErkCorrOrig / objNuc_Intensity_MenIntensity_imErkCorrOrig]
+Cora[, Ratio := objCyto_Intensity_MeanIntensity_imErkCorrOrig / objNuc_Intensity_MeanIntensity_imErkCorrOrig]
 setkey(Cora, Image_Metadata_Site, objNuc_TrackObjects_Label)
 
 ClipRatio <- Cora[, .(clip_ratio = wrap_clip(Ratio)), by = .(Image_Metadata_Site, objNuc_TrackObjects_Label)]
@@ -62,3 +62,37 @@ ClipRatio$RealTime <- Cora$RealTime
 
 overlap(ClipRatio[.(7,1), clip_ratio], ClipRatio[.(7,42), clip_ratio])
 cor(ClipRatio[.(7,3), clip_ratio],ClipRatio[.(7,42), clip_ratio], method = "k")
+
+
+# Compute overlap between all pairs of clipped trajectories in each condition
+nber_row <- 0
+for(i in 0:7){
+  nber_row <- nber_row + choose(length(unique(ClipRatio[.(i), objNuc_TrackObjects_Label])), 2)
+}
+
+# One row = one pair in one condition; set column types
+Overlap <- data.table(matrix(ncol = 4, nrow = nber_row))
+colnames(Overlap) <- c("Image_Metadata_Site", "Label1", "Label2", "Overlap")
+Overlap <- Overlap[, lapply(.SD, as.integer)]
+Overlap[, Overlap := as.numeric(Overlap)]
+
+curr_row <- 1L
+# Loop condition
+for(i in 0:7){
+  labels <- unique(ClipRatio[.(i), objNuc_TrackObjects_Label])
+  # Loop 1st label
+  for(j in 1:(length(labels)-1)){
+    # Loop 2nd label
+    for(k in (j+1):length(labels)){
+      set(Overlap, curr_row, 1L, i)
+      set(Overlap, curr_row, 2L, labels[j])
+      set(Overlap, curr_row, 3L, labels[k])
+      set(Overlap, curr_row, 4L, overlap(ClipRatio[.(i, labels[j]), clip_ratio], ClipRatio[.(i, labels[k]), clip_ratio]))
+      curr_row <- curr_row + 1L
+    }
+  }
+}
+
+
+p <- ggplot(Overlap, aes(x = Image_Metadata_Site, y = Overlap)) + geom_boxplot(aes(group  = Image_Metadata_Site))
+p
