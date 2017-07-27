@@ -1,6 +1,6 @@
 rollex <- function(x, k = 5){
-  require(zoo)
   # Extended rolling mean, fill the extremeties with linear approximation
+  require(zoo)
   roll <- rollmean(x, k, na.pad = T)
   NonNAindex <- which(!is.na(roll))
   fst <- min(NonNAindex)
@@ -20,23 +20,45 @@ rollex <- function(x, k = 5){
   return(roll)
 }
 
+
 clip <- function(x, y){
   # Take two numeric vectors of same length, set x to 1 when above y and x to 0 when below y
   return(ifelse(x >= y, 1, 0))
 }
 
+
+wrap_clip <- function(x, k = 5){
+  return(clip(x, rollex(x, k)))
+}
+
+
+overlap <- function(x, y){
+  # How often do 2 clipped time series have the same value?
+  temp <- ifelse(x==y,1,0)
+  return(sum(temp)/length(temp))
+}
+
+
 library(zoo)
+library(data.table)
+library(ggplot2)
 Cora <- fread("C:/Users/pixel/Dropbox/Marc-Antoine/data/set1-Coralie/tCoursesSelected.csv")
 Cora[, Ratio := objCyto_Intensity_MeanIntensity_imErkCorrOrig / objNuc_Intensity_MenIntensity_imErkCorrOrig]
-setkey(Cora, Image_Metadata_Site)
+setkey(Cora, Image_Metadata_Site, objNuc_TrackObjects_Label)
 
-tr1 <- Cora[Well == 6 & objNuc_TrackObjects_Label == 2, Ratio]
-roll1 <- rollmean(tr1, k = 5, na.pad = T)
-roll2 <- rollex(tr1, k = 5)
-tr1_clip <- clip(tr1, roll2)
+ClipRatio <- Cora[, .(clip_ratio = wrap_clip(Ratio)), by = .(Image_Metadata_Site, objNuc_TrackObjects_Label)]
+ClipRatio$RealTime <- Cora$RealTime
 
-plot(tr1, type= "b", ylim = c(-0.1,1.1))
-lines(roll1, type= "l", col="blue")
-lines(roll2, type="l", col='red')
-lines(tr1_clip, type="l", col="blue")
+##### 
+#Plot example of a trajectory, rolling mean and clipped trajectory
+#plot(ClipRatio[Image_Metadata_Site==5 & objNuc_TrackObjects_Label==2, clip_ratio], type = 'l', col = 'blue')
+#points(Cora[Image_Metadata_Site == 5 & objNuc_TrackObjects_Label == 2, Ratio])
+#lines(Cora[Image_Metadata_Site == 5 & objNuc_TrackObjects_Label == 2, Ratio])
+#lines(rollex(Cora[Image_Metadata_Site == 5 & objNuc_TrackObjects_Label == 2, Ratio]), col = 'red')
 
+#p <- ggplot(ClipRatio[.(7,2)], aes(x=RealTime, y=clip_ratio)) + geom_step(alpha = 1) + theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()); p
+#####
+
+
+overlap(ClipRatio[.(7,1), clip_ratio], ClipRatio[.(7,42), clip_ratio])
+cor(ClipRatio[.(7,3), clip_ratio],ClipRatio[.(7,42), clip_ratio], method = "k")
