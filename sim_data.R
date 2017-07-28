@@ -1,10 +1,10 @@
-sim_phase_shifted <- function(n, noise, freq = 1 ,len = 100, return.wide = F){
-  # A fucntion to simulate a population of n noisy sinusoidals, at frequency freq 
+sim_phase_shifted <- function(n, noise, freq = 1, len = 100, return.wide = F){
+  # A fucntion to simulate a population of n noisy sinusoidals that are phase shifted
   # n: number of sinusoids
   # freq: sampling rate (in time unit)
   # noise: standard deviation phaseshift
   # len: length of simulations
-  # return.matrix: returns data in wide or long format
+  # return.wide: returns data in wide or long format
   
   require(data.table)
   # Create a matrix of shifted times 
@@ -30,17 +30,34 @@ sim_phase_shifted <- function(n, noise, freq = 1 ,len = 100, return.wide = F){
 }
 
 
-plot_sim <- function(data, alpha = 0.2){
+sim_phase_shifted_with_fixed_trend <- function(n, noise, slope, freq = 1, len = 100){
+  # Add a trend, i.e. a linear increase or decrease, to simulations
+  # See sim_phase_shifted for arguments. Slope indicates the slope of the trend (change of mean value per unit of time)
+  
+  sins <- sim_phase_shifted(n, noise, freq,len, return.wide = F)
+  trend_vec <- unique(sins$Time)
+  trend_vec <- trend_vec * slope
+  sins[, value := value + trend_vec, by = .(variable)]
+  return(sins)
+}
+
+
+
+plot_sim <- function(data, x = "Time", y = "value", group = "variable", use.facet = T, facet = "noise", alpha = 0.2){
   require(ggplot2)
-  p <- ggplot(data, aes(x = Time, y = value)) + geom_line(aes(group = variable), alpha = alpha)
+  p <- ggplot(data, aes_string(x = x, y = y)) + geom_line(aes_string(group = group), alpha = alpha)
   p <- p + stat_summary(fun.y=mean, geom="line", colour = "blue", size = 1.5)
-  p <- p + facet_grid(noise ~ .)
+  if(use.facet){
+    p <- p + facet_grid(as.formula(paste(facet, "~ .")))
+  }
   p
 }
 
 
 
-# vector of noise?
+
+
+# TODO:  vector of noise? -> MultiSIm
 noises <- seq(0.2, 3, 0.2)
 n <- 50
 len <- 100
@@ -70,3 +87,11 @@ plot_sim(multi_sim)
 p
 q
 dev.off()
+
+
+multi_sim[, ':=' (noise = as.integer(noise*10),
+             variable = as.integer(gsub("V", "", as.character(variable), fixed = T)))]
+Correlations_Pearson <- correlations_group_label(multi_sim, "noise", "variable","value", method = "pearson")
+Correlations_Spearman <- correlations_group_label(multi_sim, "noise", "variable","value", method = "spearman")
+Correlations_Kendall <- correlations_group_label(multi_sim, "noise", "variable","value", method = "kendall")
+

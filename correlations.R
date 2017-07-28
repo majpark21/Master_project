@@ -20,7 +20,7 @@ correlations_group_label <- function(data, condition, label, measure, method){
   out <- data.table(matrix(ncol = 4, nrow = nber_row))
   colnames(out) <- c(condition, "Label1", "Label2", "Correlations")
   out <- out[, lapply(.SD, as.integer)]
-  out[, Overlap := as.numeric(Overlap)]
+  out[, Correlations := as.numeric(Correlations)]
   
   curr_row <- 1L
   # Loop condition
@@ -33,7 +33,7 @@ correlations_group_label <- function(data, condition, label, measure, method){
         set(out, curr_row, 1L, i)
         set(out, curr_row, 2L, labels[j])
         set(out, curr_row, 3L, labels[k])
-        set(out, curr_row, 4L, cor(data[.(i, labels[j]), get(measure)], data[.(i, labels[k]), get(measure)]), method=method)
+        set(out, curr_row, 4L, cor(data[.(i, labels[j]), get(measure)], data[.(i, labels[k]), get(measure)], method=method))
         curr_row <- curr_row + 1L
       }
     }
