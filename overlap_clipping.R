@@ -11,6 +11,7 @@ overlap_clipping <- function(data, condition, label, measure){
   # measure: column name with clipped trajectories
   # label: column name with label of individual objects in each condition (cell label); LABELS MUST BE INTEGERS
   
+  require(data.table)
   setkeyv(data, c(condition, label))
 
   # Number of rows for data table initialization, sum of number of pairs in each condition
@@ -88,14 +89,14 @@ overlap <- function(x, y){
 
 #####
 
-library(zoo)
+
 library(data.table)
 library(ggplot2)
 Cora <- fread("C:/Users/pixel/Dropbox/Marc-Antoine/data/set1-Coralie/tCoursesSelected.csv")
 Cora[, Ratio := objCyto_Intensity_MeanIntensity_imErkCorrOrig / objNuc_Intensity_MeanIntensity_imErkCorrOrig]
 setkey(Cora, Image_Metadata_Site, objNuc_TrackObjects_Label)
 
-ClipRatio <- Cora[, .(clip_ratio = wrap_clip(Ratio)), by = .(Image_Metadata_Site, objNuc_TrackObjects_Label)]
+ClipRatio <- Cora[, .(clip_ratio = wrap_clip(Ratio, k = 5)), by = .(Image_Metadata_Site, objNuc_TrackObjects_Label)]
 Overlap <- overlap_clipping(data = ClipRatio, condition = "Image_Metadata_Site", label = "objNuc_TrackObjects_Label", measure = "clip_ratio")
 
 ##### 
