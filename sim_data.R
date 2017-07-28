@@ -34,21 +34,36 @@ plot_sim <- function(data, alpha = 0.2){
   require(ggplot2)
   p <- ggplot(data, aes(x = Time, y = value)) + geom_line(aes(group = variable), alpha = alpha)
   p <- p + stat_summary(fun.y=mean, geom="line", colour = "blue", size = 1.5)
+  p <- p + facet_grid(noise ~ .)
   p
 }
-plot_sim(sim2)
 
 
-# TODO: Implement condition as noise, simulate for a vector of noise?
-sim <- sim_phase_shifted(n = 50, noise = 0.1)
-sim$condition <- 1
-a <- dist_mean(sim, "condition", "Time", "value", "variable")
+
+# vector of noise?
+noises <- seq(0.2, 1.2, 0.2)
+n <- 50
+len <- 100
+multi_sim <- sim_phase_shifted(n, 0, len=len)
+multi_sim$noise <- 0
+for(noise in noises){
+  temp <- sim_phase_shifted(n, noise, len=len)
+  temp$noise <- noise
+  multi_sim <- rbind(multi_sim, temp)
+}
+
+plot_sim(multi_sim)
+
+DistMean <- dist_mean(data = multi_sim, condition = "noise", tcol = "Time", measure = "value", label = "variable")
+p <- ggplot(DistMean, aes(x = as.factor(noise), y = euclid_to_mean)) + geom_boxplot(aes(group = noise)); p
+
+Clip <- multi_sim[, .(clip = wrap_clip(value, k = 5)), by = .(noise, variable)]
+# Convert noise (condition) and variable (label) to integers to comply with overlap constrains
+Clip[, ':=' (noise = as.integer(noise*10),
+             variable = as.integer(gsub("V", "", as.character(variable), fixed = T)))]
+Overlap <- overlap_clipping(data = Clip, condition = "noise", label = "variable", measure = "clip")
+q <- ggplot(Overlap, aes(x = as.factor(noise), y = Overlap)) + geom_boxplot(aes(group  = noise)) + scale_x_discrete(labels = as.character(c(0,noises))) ; q
 
 
-sim2 <- sim_phase_shifted(n = 50, noise = 1)
-sim2$condition <- 1
-b <- dist_mean(sim2, "condition", "Time", "value", "variable")
 
-par(mfrow=c(1,2))
-boxplot(a$euclid_to_mean, ylim = c(0,10), main="noise 1")
-boxplot(b$euclid_to_mean, ylim = c(0,10), main="noise X")
+
