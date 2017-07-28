@@ -65,7 +65,7 @@ sim_noisy_amplitude <- function(n, noise, freq = 1, len = 100, return.wide = F){
 }
 
 
-multi_sim <- function(type, noises, ...){
+multi_sims <- function(type, noises, ...){
   # /!\ not optimized, growing data table
   # Generate multiple simulations of the indicated type.
   # noises: numeric vector with noise value, DO NOT PASS 0, as it is already used to initialize the output
@@ -93,10 +93,6 @@ multi_sim <- function(type, noises, ...){
   return(multi_sim)
 }
 
-temp = multi_sim(type="na", noises=seq(0.2, 1.4, 0.2), n = 50)
-plot_sim(temp)
-
-
 
 plot_sim <- function(data, x = "Time", y = "value", group = "variable", use.facet = T, facet = "noise", alpha = 0.2){
   require(ggplot2)
@@ -110,20 +106,8 @@ plot_sim <- function(data, x = "Time", y = "value", group = "variable", use.face
 
 
 
-
-
-# TODO:  vector of noise? -> MultiSIm
 noises <- seq(0.2, 3, 0.2)
-n <- 50
-len <- 100
-multi_sim <- sim_phase_shifted(n, 0, len=len)
-multi_sim$noise <- 0
-for(noise in noises){
-  temp <- sim_phase_shifted(n, noise, len=len)
-  temp$noise <- noise
-  multi_sim <- rbind(multi_sim, temp)
-}
-
+multi_sim <-  multi_sims(type="pst", noises=noises, n = 50, slope = 0.1)
 plot_sim(multi_sim)
 
 DistMean <- dist_mean(data = multi_sim, condition = "noise", tcol = "Time", measure = "value", label = "variable")
