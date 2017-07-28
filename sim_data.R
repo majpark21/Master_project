@@ -42,6 +42,61 @@ sim_phase_shifted_with_fixed_trend <- function(n, noise, slope, freq = 1, len = 
 }
 
 
+sim_noisy_amplitude <- function(n, noise, freq = 1, len = 100, return.wide = F){
+  # Create a matrix of times and noise
+  time_matrix <- matrix(seq(0, len-1, freq), nrow = len, ncol = n)
+  noise_matrix <- replicate(n, rnorm(len, 0, noise))
+  
+  # Replace each shifted time by it sine function and add white noise
+  sins <- sin(time_matrix)
+  sins <- sins + noise_matrix
+  
+  # Go to data.table
+  sins <- as.data.table(sins)
+  sins <- cbind(seq(0, len-1, freq), sins)
+  colnames(sins)[1] <- "Time"
+  if(return.wide){
+    return(sins)  
+  }
+  
+  # Format long data table
+  sins <- melt(sins, id.vars = "Time")
+  return(sins)
+}
+
+
+multi_sim <- function(type, noises, ...){
+  # /!\ not optimized, growing data table
+  # Generate multiple simulations of the indicated type.
+  # noises: numeric vector with noise value, DO NOT PASS 0, as it is already used to initialize the output
+  # ps: phase shifted
+  # pst: phase shifted with linear trend
+  # na: noisy amplitude
+  
+  if(!(type %in% c("ps", "pst", "na"))){
+    stop("type must be one of c('ps', 'pst', 'na')")
+  }
+  
+  # Initialize data.table with no noise
+  if(type == "ps"){multi_sim <- sim_phase_shifted(noise = 0, ...)}
+  else if(type == "pst"){multi_sim <- sim_phase_shifted_with_fixed_trend(noise = 0, ...)}
+  else if(type == "na"){multi_sim <- sim_noisy_amplitude(noise = 0, ...)}
+  
+  multi_sim$noise <- 0
+  for(noise in noises){
+    if(type == "ps"){temp <- sim_phase_shifted(noise = noise, ...)}
+    else if(type == "pst"){temp <- sim_phase_shifted_with_fixed_trend(noise = noise, ...)}
+    else if(type == "na"){temp <- sim_noisy_amplitude(noise = noise, ...)}
+    temp$noise <- noise
+    multi_sim <- rbind(multi_sim, temp)
+  }
+  return(multi_sim)
+}
+
+temp = multi_sim(type="na", noises=seq(0.2, 1.4, 0.2), n = 50)
+plot_sim(temp)
+
+
 
 plot_sim <- function(data, x = "Time", y = "value", group = "variable", use.facet = T, facet = "noise", alpha = 0.2){
   require(ggplot2)
