@@ -7,9 +7,16 @@ overlap_clipping <- function(data, condition, label, measure){
   # Compute overlap between all pairs of clipped trajectories in each condition
   
   # data: a data table containing CLIPPED trajectories
-  # condition: column name that fully define an experimental condition; MUST BE INTEGERS
+  # condition: column name that fully define an experimental condition; MUST BE INTEGERS OR CHARACTERS
   # measure: column name with clipped trajectories
-  # label: column name with label of individual objects in each condition (cell label); LABELS MUST BE INTEGERS
+  # label: column name with label of individual objects in each condition (cell label); LABELS MUST BE INTEGERS OR CHARACTERS
+  
+  if(!(class(data[,get(condition)]) %in% c("integer", "character"))){
+    stop("Column 'condition' must be integer or character.")
+  }
+  if(!(class(data[,get(label)]) %in% c("integer", "character"))){
+    stop("Column 'label' must be integer or character.")
+  }
   
   require(data.table)
   setkeyv(data, c(condition, label))
@@ -20,10 +27,21 @@ overlap_clipping <- function(data, condition, label, measure){
     nber_row <- nber_row + choose(length(unique(data[.(i), get(label)])), 2)
   }
   
-  # One row = one pair in one condition; set column types
+  # One row = one pair in one condition; set column types according to input types
   out <- data.table(matrix(ncol = 4, nrow = nber_row))
   colnames(out) <- c(condition, "Label1", "Label2", "Overlap")
-  out <- out[, lapply(.SD, as.integer)]
+  if(class(data[,get(condition)]) == "integer"){out[[condition]] <- as.integer(out[[condition]])}
+  else if(class(data[,get(condition)]) == "character"){out[[condition]] <- as.character(out[[condition]])}
+  
+  if(class(data[,get(label)]) == "integer"){
+    out[, Label1 := as.integer(Label1)]
+    out[, Label2 := as.integer(Label2)]
+  }
+  else if(class(data[,get(label)]) == "character"){
+    out[, Label1 := as.character(Label1)]
+    out[, Label2 := as.character(Label2)]
+  }
+
   out[, Overlap := as.numeric(Overlap)]
   
   curr_row <- 1L
