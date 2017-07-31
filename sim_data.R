@@ -115,6 +115,8 @@ p <- ggplot(DistMean, aes(x = as.factor(noise), y = euclid_to_mean)) + geom_boxp
 
 Clip <- multi_sim[, .(clip = wrap_clip(value, k = 5)), by = .(noise, variable)]
 # Convert noise (condition) and variable (label) to integers to comply with overlap constrains
+Clip[, ':=' (noise = as.character(noise),
+             variable = as.integer(gsub("V", "", as.character(variable), fixed = T)))]
 Clip[, ':=' (noise = as.integer(noise*10),
              variable = as.integer(gsub("V", "", as.character(variable), fixed = T)))]
 Overlap <- overlap_clipping(data = Clip, condition = "noise", label = "variable", measure = "clip")

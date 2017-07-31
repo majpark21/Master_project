@@ -7,15 +7,15 @@ overlap_clipping <- function(data, condition, label, measure){
   # Compute overlap between all pairs of clipped trajectories in each condition
   
   # data: a data table containing CLIPPED trajectories
-  # condition: column name that fully define an experimental condition; MUST BE INTEGERS OR CHARACTERS
+  # condition: column name that fully define an experimental condition; MUST BE INTEGERS, NUMERIC, FACTOR OR CHARACTERS
   # measure: column name with clipped trajectories
-  # label: column name with label of individual objects in each condition (cell label); LABELS MUST BE INTEGERS OR CHARACTERS
+  # label: column name with label of individual objects in each condition (cell label); LABELS MUST BE INTEGERS, NUMERIC, FACTOR OR CHARACTERS
   
-  if(!(class(data[,get(condition)]) %in% c("integer", "character"))){
-    stop("Column 'condition' must be integer or character.")
+  if(!(class(data[,get(condition)]) %in% c("integer", "numeric", "character", "factor"))){
+    stop("Column 'condition' must be integer, numeric, factor or character.")
   }
-  if(!(class(data[,get(label)]) %in% c("integer", "character"))){
-    stop("Column 'label' must be integer or character.")
+  if(!(class(data[,get(label)]) %in% c("integer", "numeric", "character", "factor"))){
+    stop("Column 'label' must be integer, numeric, factor or character.")
   }
   
   require(data.table)
@@ -31,16 +31,28 @@ overlap_clipping <- function(data, condition, label, measure){
   out <- data.table(matrix(ncol = 4, nrow = nber_row))
   colnames(out) <- c(condition, "Label1", "Label2", "Overlap")
   if(class(data[,get(condition)]) == "integer"){out[[condition]] <- as.integer(out[[condition]])}
+  else if(class(data[,get(condition)]) == "numeric"){out[[condition]] <- as.numeric(out[[condition]])}
   else if(class(data[,get(condition)]) == "character"){out[[condition]] <- as.character(out[[condition]])}
+  else if(class(data[,get(condition)]) == "factor"){out[[condition]] <- as.factor(out[[condition]])}
+  
   
   if(class(data[,get(label)]) == "integer"){
     out[, Label1 := as.integer(Label1)]
     out[, Label2 := as.integer(Label2)]
   }
+  else if(class(data[,get(label)]) == "numeric"){
+    out[, Label1 := as.numeric(Label1)]
+    out[, Label2 := as.numeric(Label2)]
+  }
   else if(class(data[,get(label)]) == "character"){
     out[, Label1 := as.character(Label1)]
     out[, Label2 := as.character(Label2)]
   }
+  else if(class(data[,get(label)]) == "factor"){
+    out[, Label1 := as.factor(Label1)]
+    out[, Label2 := as.factor(Label2)]
+  }
+  
 
   out[, Overlap := as.numeric(Overlap)]
   
