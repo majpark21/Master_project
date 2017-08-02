@@ -396,17 +396,9 @@ cor(na_pw[, 4:7])
 
 For each condition, count the proportion of trajectories that are lying more than x standard deviation from the mean (conversion to z-score first?).
 
-#### Overlap
+
+#### Correlations and Overlap
 
 Get a p-value:
-
-H0: Random overlap would be a binomial process, where at each time point the proba of having an overlap is 0.5 (success)
-
-HA: the proba of overlap is > 0.5
-
-
-#### Correlations
-
-Get a p-value:
-Assume that they are normally distributed, check that the distributions lies above 0 (t-test)
+Assume that they are normally distributed, check that the distributions lies above 0 for correlations and above 0.5 for clipping (t-test).
 
