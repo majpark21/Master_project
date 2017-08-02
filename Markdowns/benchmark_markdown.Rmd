@@ -402,3 +402,21 @@ For each condition, count the proportion of trajectories that are lying more tha
 Get a p-value:
 Assume that they are normally distributed, check that the distributions lies above 0 for correlations and above 0.5 for clipping (t-test).
 
+```{r}
+ps_pw[noise !=0 , .(p.val.pears = t.test(Pearson)$p.value,
+                    p.val.spear = t.test(Spearman)$p.value,
+                    p.val.kenda = t.test(Kendall)$p.value,
+                    p.val.ovrlp = t.test(Overlap, mu = 0.5)$p.value), by = noise]
+
+pst_pw[noise !=0 , .(p.val.pears = t.test(Pearson)$p.value,
+                    p.val.spear = t.test(Spearman)$p.value,
+                    p.val.kenda = t.test(Kendall)$p.value,
+                    p.val.ovrlp = t.test(Overlap, mu = 0.5)$p.value), by = noise]
+
+na_pw[noise !=0 , .(p.val.pears = t.test(Pearson)$p.value,
+                    p.val.spear = t.test(Spearman)$p.value,
+                    p.val.kenda = t.test(Kendall)$p.value,
+                    p.val.ovrlp = t.test(Overlap, mu = 0.5)$p.value), by = noise]
+```
+
+
