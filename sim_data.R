@@ -107,18 +107,13 @@ plot_sim <- function(data, x = "Time", y = "value", group = "variable", use.face
 
 
 noises <- seq(0.2, 3, 0.2)
-multi_sim <-  multi_sims(type="pst", noises=noises, n = 50, slope = 0.1)
+multi_sim <-  multi_sims(type="na", noises=noises, n = 50)
 plot_sim(multi_sim)
 
 DistMean <- dist_mean(data = multi_sim, condition = "noise", tcol = "Time", measure = "value", label = "variable")
 p <- ggplot(DistMean, aes(x = as.factor(noise), y = euclid_to_mean)) + geom_boxplot(aes(group = noise)) + ggtitle("Euclidian distance to mean trajectory"); p
 
 Clip <- multi_sim[, .(clip = wrap_clip(value, k = 5)), by = .(noise, variable)]
-# Convert noise (condition) and variable (label) to integers to comply with overlap constrains
-Clip[, ':=' (noise = as.character(noise),
-             variable = as.integer(gsub("V", "", as.character(variable), fixed = T)))]
-Clip[, ':=' (noise = as.integer(noise*10),
-             variable = as.integer(gsub("V", "", as.character(variable), fixed = T)))]
 Overlap <- overlap_clipping(data = Clip, condition = "noise", label = "variable", measure = "clip")
 q <- ggplot(Overlap, aes(x = as.factor(noise), y = Overlap)) + geom_boxplot(aes(group  = noise)) + scale_x_discrete(labels = as.character(c(0,noises))) + ggtitle("Pairwise overlap of clipped trajectories") ; q
 
