@@ -117,37 +117,3 @@ overlap <- function(x, y){
 }
 
 
-#####
-
-
-library(data.table)
-library(ggplot2)
-Cora <- fread("C:/Users/pixel/Dropbox/Marc-Antoine/data/set1-Coralie/tCoursesSelected.csv")
-Cora[, Ratio := objCyto_Intensity_MeanIntensity_imErkCorrOrig / objNuc_Intensity_MeanIntensity_imErkCorrOrig]
-setkey(Cora, Image_Metadata_Site, objNuc_TrackObjects_Label)
-
-ClipRatio <- Cora[, .(clip_ratio = wrap_clip(Ratio, k = 5)), by = .(Image_Metadata_Site, objNuc_TrackObjects_Label)]
-Overlap <- overlap_clipping(data = ClipRatio, condition = "Image_Metadata_Site", label = "objNuc_TrackObjects_Label", measure = "clip_ratio")
-
-##### 
-#Plot example of a trajectory, rolling mean and clipped trajectory
-#plot(ClipRatio[Image_Metadata_Site==5 & objNuc_TrackObjects_Label==2, clip_ratio], type = 'l', col = 'blue')
-#points(Cora[Image_Metadata_Site == 5 & objNuc_TrackObjects_Label == 2, Ratio])
-#lines(Cora[Image_Metadata_Site == 5 & objNuc_TrackObjects_Label == 2, Ratio])
-#lines(rollex(Cora[Image_Metadata_Site == 5 & objNuc_TrackObjects_Label == 2, Ratio]), col = 'red')
-
-#ClipRatio$RealTime <- Cora$RealTime
-#p <- ggplot(ClipRatio[.(7,2)], aes(x=RealTime, y=clip_ratio)) + geom_step(alpha = 1) + theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()); p
-#####
-
-
-overlap(ClipRatio[.(7,1), clip_ratio], ClipRatio[.(7,42), clip_ratio])
-cor(ClipRatio[.(7,3), clip_ratio],ClipRatio[.(7,42), clip_ratio], method = "k")
-
-
-
-p <- ggplot(Overlap, aes(x = Image_Metadata_Site, y = Overlap)) + geom_boxplot(aes(group  = Image_Metadata_Site))
-p
-
-
-temp <- overlap_clipping(data = ClipRatio, condition = "Image_Metadata_Site", label = "objNuc_TrackObjects_Label", measure = "clip_ratio")
