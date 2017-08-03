@@ -1,13 +1,14 @@
 ##### Data Simulation #####
 n <- 50 # number of trajectories per noise level
 noises <- seq(0.2, 3, 0.2)
+freq <- 0.2
 
 # Phase shifted
-ps <- multi_sims(type = "ps", noises = noises, n = n)
+ps <- multi_sims(type = "ps", noises = noises, n = n, freq = freq)
 # Phase shifted with trend
-pst <- multi_sims(type = "pst", noises = noises, n = n, slope = 0.1)
+pst <- multi_sims(type = "pst", noises = noises, n = n, slope = 0.1, freq = freq)
 # Amplitude noise
-na <- multi_sims(type = "na", noises = noises, n = n)
+na <- multi_sims(type = "na", noises = noises, n = n, freq = freq)
 
 
 ##### Distance to Mean #####
