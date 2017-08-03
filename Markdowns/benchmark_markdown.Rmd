@@ -5,7 +5,7 @@ date: "2 août 2017"
 output:
   html_document:
     fig_width: 21
-    fig_height: 21
+    toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -282,10 +282,10 @@ all_pairwise_stats <- function(data, condition, label, measure, k_roll_mean = 5)
 
 ## 2. Data Simulation
 
-```{r message=F}
+```{r message=F, fig.height=21}
 n <- 50 # number of trajectories per noise level
 noises <- seq(0.2, 3, 0.2)
-freq <- 0.2 # compute sinus every 0.2 time unit
+freq <- 1 # compute sinus every 1 time unit
 
 # Phase shifted
 ps <- multi_sims(type = "ps", noises = noises, n = n, freq = freq)
@@ -352,38 +352,38 @@ grid.arrange(p1, p2, p3, ncol = 3)
 
 ```{r message=F, echo=F, fig.height=10}
 # Overlap
-p1 <- ggplot(ps_pw, aes(x = noise, y = Overlap)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(0,1))
-p2 <- ggplot(pst_pw, aes(x = noise, y = Overlap)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted with Trend") + scale_y_continuous(limits = c(0,1))
-p3 <- ggplot(na_pw, aes(x = noise, y = Overlap)) + geom_boxplot(aes(group = noise)) + ggtitle("Noisy Amplitude") + scale_y_continuous(limits = c(0,1))
-grid.arrange(p1, p2, p3, ncol = 3)
+q1 <- ggplot(ps_pw, aes(x = noise, y = Overlap)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(0,1))
+q2 <- ggplot(pst_pw, aes(x = noise, y = Overlap)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted with Trend") + scale_y_continuous(limits = c(0,1))
+q3 <- ggplot(na_pw, aes(x = noise, y = Overlap)) + geom_boxplot(aes(group = noise)) + ggtitle("Noisy Amplitude") + scale_y_continuous(limits = c(0,1))
+grid.arrange(q1, q2, q3, ncol = 3)
 ```
 
 
 #### Pairwise Pearson correlations
 
 ```{r message=F, echo=F, fig.height=10}
-p1 <- ggplot(ps_pw, aes(x = noise, y = Pearson)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(-1,1))
-p2 <- ggplot(pst_pw, aes(x = noise, y = Pearson)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted with Trend") + scale_y_continuous(limits = c(-1,1))
-p3 <- ggplot(na_pw, aes(x = noise, y = Pearson)) + geom_boxplot(aes(group = noise)) + ggtitle("Noisy Amplitude") + scale_y_continuous(limits = c(-1,1))
-grid.arrange(p1, p2, p3, ncol = 3)
+r1 <- ggplot(ps_pw, aes(x = noise, y = Pearson)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(-1,1))
+r2 <- ggplot(pst_pw, aes(x = noise, y = Pearson)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted with Trend") + scale_y_continuous(limits = c(-1,1))
+r3 <- ggplot(na_pw, aes(x = noise, y = Pearson)) + geom_boxplot(aes(group = noise)) + ggtitle("Noisy Amplitude") + scale_y_continuous(limits = c(-1,1))
+grid.arrange(r1, r2, r3, ncol = 3)
 ```
 
 #### Pairwise Spearman correlations
 
 ```{r message=F, echo=F, fig.height=10}
-p1 <- ggplot(ps_pw, aes(x = noise, y = Spearman)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(-1,1))
-p2 <- ggplot(pst_pw, aes(x = noise, y = Spearman)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted with Trend") + scale_y_continuous(limits = c(-1,1))
-p3 <- ggplot(na_pw, aes(x = noise, y = Spearman)) + geom_boxplot(aes(group = noise)) + ggtitle("Noisy Amplitude") + scale_y_continuous(limits = c(-1,1))
-grid.arrange(p1, p2, p3, ncol = 3)
+s1 <- ggplot(ps_pw, aes(x = noise, y = Spearman)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(-1,1))
+s2 <- ggplot(pst_pw, aes(x = noise, y = Spearman)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted with Trend") + scale_y_continuous(limits = c(-1,1))
+s3 <- ggplot(na_pw, aes(x = noise, y = Spearman)) + geom_boxplot(aes(group = noise)) + ggtitle("Noisy Amplitude") + scale_y_continuous(limits = c(-1,1))
+grid.arrange(s1, s2, s3, ncol = 3)
 ```
 
 #### Pairwise Kendall correlations
 
 ```{r message=F, echo=F, fig.height=10}
-p1 <- ggplot(ps_pw, aes(x = noise, y = Kendall)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(-1,1))
-p2 <- ggplot(pst_pw, aes(x = noise, y = Kendall)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted with Trend") + scale_y_continuous(limits = c(-1,1))
-p3 <- ggplot(na_pw, aes(x = noise, y = Kendall)) + geom_boxplot(aes(group = noise)) + ggtitle("Noisy Amplitude") + scale_y_continuous(limits = c(-1,1))
-grid.arrange(p1, p2, p3, ncol = 3)
+t1 <- ggplot(ps_pw, aes(x = noise, y = Kendall)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(-1,1))
+t2 <- ggplot(pst_pw, aes(x = noise, y = Kendall)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted with Trend") + scale_y_continuous(limits = c(-1,1))
+t3 <- ggplot(na_pw, aes(x = noise, y = Kendall)) + geom_boxplot(aes(group = noise)) + ggtitle("Noisy Amplitude") + scale_y_continuous(limits = c(-1,1))
+grid.arrange(t1, t2, t3, ncol = 3)
 ```
 
 
@@ -425,4 +425,95 @@ na_pw[noise !=0 , .(p.val.pears = t.test(Pearson)$p.value,
                     p.val.ovrlp = t.test(Overlap, mu = 0.5)$p.value), by = noise]
 ```
 
+
+## 8. Effect of window size in rolling mean for clipped trajectories
+
+
+If we increase sampling rate, it means that there is more points per oscillation. Visually this means that the average trajectory is smoother. 
+
+```{r}
+plot_sim(sim_phase_shifted(n = 50, noise = 0.4, freq = 2), use.facet = F)
+plot_sim(sim_phase_shifted(n = 50, noise = 0.4, freq = 0.2), use.facet = F)
+```
+
+
+The role of the rolling mean in clipping, is to "cut the oscillation in 2". A good case is like:
+
+```{r}
+# Contains 6 to 7 points per oscillation
+sim <- sim_phase_shifted(n = 1, noise = 0, freq = 1)
+plot(sim$Time, sim$value, type = "b")
+lines(x=sim$Time, y=rollex(sim$value, k = 6), col = "red", lwd = 1.5)
+
+# clip trajectory and scale for clarity on the plot
+clip_traj <- wrap_clip(x = sim$value, k = 6)
+clip_traj <- ifelse(clip_traj == 0, -1, 1)
+lines(x=sim$Time, y=clip_traj, col = "blue", type = "S")
+```
+
+It is a good case since the rolling mean (in red), cuts the trajectory (in black) at half-period (i.e. near to 0). This results in a clipped trajectory (in blue) that is up when the oscillation is "above 0" and down when its "below 0".
+
+Now we multiply the sampling rate by 5, but keep the same window size for the moving average in the top case, and multiply it also by 5 in the bottom case:
+
+```{r fig.height=15}
+par(mfrow = c(2,1))
+# Contains more than 35 points per oscillation
+sim <- sim_phase_shifted(n = 1, noise = 0, freq = 0.2)
+
+size_window <- 6
+plot(sim$Time, sim$value, type = "b")
+lines(x = sim$Time, y = rollex(sim$value, k = size_window), col = "red", lwd = 1.5)
+clip_traj <- wrap_clip(x = sim$value, k = size_window)
+clip_traj <- ifelse(clip_traj == 0, -1, 1)
+lines(x = sim$Time, y = clip_traj, col = "blue", type = "S")
+
+size_window <- 35
+plot(sim$Time, sim$value, type = "b")
+lines(x = sim$Time, y = rollex(sim$value, k = size_window), col = "red", lwd = 1.5)
+clip_traj <- wrap_clip(x = sim$value, k = size_window)
+clip_traj <- ifelse(clip_traj == 0, -1, 1)
+lines(x = sim$Time, y = clip_traj, col = "blue", type = "S")
+```
+
+As we can see the moving average follows the signal perfectly with the small window, whereas it is out of phase with the larger window with much smaller amplitude. Clipping trajectory is ok in both cases. Nevertheless the top case is bad, why? Don't forget that we've been working with perfect sinusoid so far, let's see what happens with a tiny bit of noise in the amplitude of the signal:
+
+```{r fig.height=15}
+par(mfrow = c(2,1))
+# Contains more than 35 points per oscillation
+sim <- sim_noisy_amplitude(n = 1, noise = 0.1, freq = 0.2)
+
+size_window <- 6
+plot(sim$Time, sim$value, type = "b")
+lines(x = sim$Time, y = rollex(sim$value, k = size_window), col = "red", lwd = 1.5)
+clip_traj <- wrap_clip(x = sim$value, k = size_window)
+clip_traj <- ifelse(clip_traj == 0, -1, 1)
+lines(x = sim$Time, y = clip_traj, col = "blue", type = "S")
+
+size_window <- 35
+plot(sim$Time, sim$value, type = "b")
+lines(x = sim$Time, y = rollex(sim$value, k = size_window), col = "red", lwd = 1.5)
+clip_traj <- wrap_clip(x = sim$value, k = size_window)
+clip_traj <- ifelse(clip_traj == 0, -1, 1)
+lines(x = sim$Time, y = clip_traj, col = "blue", type = "S")
+```
+
+As we observe, clipped trajectory becomes completely random with the small window, whereas it remains identical with the larger one. So we should choose the window size for the rolling mean such that it covers the number of points in an oscillation. 
+
+
+On multiple simulations the distributions look like:
+
+```{r}
+# Already defined in section 4.
+# na <- multi_sims(type = "na", noises = noises, n = n, freq = 1)
+# na_pw <- all_pairwise_stats(data = na, condition = cond, label = lab, measure = mea, k_roll_mean = 5)
+# q3 <- ggplot(na_pw, aes(x = noise, y = Overlap)) + geom_boxplot(aes(group = noise)) + ggtitle("Noisy Amplitude") + scale_y_continuous(limits = c(0,1))
+
+na_high_freq <- multi_sims(type = "na", noises = noises, n = n, freq = 0.2)
+na_high_freq_pw <- all_pairwise_stats(data = na_high_freq, condition = cond, label = lab, measure = mea, k_roll_mean = 5)
+```
+
+```{r fig.height = 10}
+q3_high <- ggplot(na_high_freq_pw, aes(x = noise, y = Overlap)) + geom_boxplot(aes(group = noise)) + ggtitle("Window Size: 5; Freq: 0.2 (window too small)") + scale_y_continuous(limits = c(0,1))
+grid.arrange(q3 + ggtitle("Window Size: 5; Freq: 1 (window of the right size)"), q3_high, ncol = 2)
+```
 
