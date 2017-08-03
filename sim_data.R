@@ -1,16 +1,19 @@
-sim_phase_shifted <- function(n, noise, freq = 1, len = 100, return.wide = F){
+sim_phase_shifted <- function(n, noise, freq = 1, end = 100, return.wide = F){
   # A fucntion to simulate a population of n noisy sinusoidals that are phase shifted
   # n: number of sinusoids
   # freq: sampling rate (in time unit)
   # noise: standard deviation phaseshift
-  # len: length of simulations
+  # end: end time of simulations
   # return.wide: returns data in wide or long format
   
   require(data.table)
+  # If sampling rate < 1, adjust end such that seq(from, to, by) re
+  
   # Create a matrix of shifted times 
-  time_matrix <- matrix(seq(0, len-1, freq), nrow = len, ncol = n)
+  tvec <- seq(0, end-1, by = freq)
+  time_matrix <- matrix(tvec, nrow = length(tvec), ncol = n)
   shifts <- rnorm(n, 0, noise)
-  shifts <- matrix(shifts, nrow = len, ncol = n, byrow = T)
+  shifts <- matrix(shifts, nrow = length(tvec), ncol = n, byrow = T)
   time_matrix <- time_matrix + shifts
 
   # Replace each shifted time by it sine function
@@ -18,7 +21,7 @@ sim_phase_shifted <- function(n, noise, freq = 1, len = 100, return.wide = F){
   
   # Go to data.table
   sins <- as.data.table(sins)
-  sins <- cbind(seq(0, len-1, freq), sins)
+  sins <- cbind(seq(0, end-1, by = freq), sins)
   colnames(sins)[1] <- "Time"
   if(return.wide){
     return(sins)  
@@ -30,11 +33,11 @@ sim_phase_shifted <- function(n, noise, freq = 1, len = 100, return.wide = F){
 }
 
 
-sim_phase_shifted_with_fixed_trend <- function(n, noise, slope, freq = 1, len = 100){
+sim_phase_shifted_with_fixed_trend <- function(n, noise, slope, freq = 1, end = 100){
   # Add a trend, i.e. a linear increase or decrease, to simulations
   # See sim_phase_shifted for arguments. Slope indicates the slope of the trend (change of mean value per unit of time)
   
-  sins <- sim_phase_shifted(n, noise, freq,len, return.wide = F)
+  sins <- sim_phase_shifted(n, noise, freq, end, return.wide = F)
   trend_vec <- unique(sins$Time)
   trend_vec <- trend_vec * slope
   sins[, value := value + trend_vec, by = .(variable)]
@@ -42,10 +45,11 @@ sim_phase_shifted_with_fixed_trend <- function(n, noise, slope, freq = 1, len = 
 }
 
 
-sim_noisy_amplitude <- function(n, noise, freq = 1, len = 100, return.wide = F){
+sim_noisy_amplitude <- function(n, noise, freq = 1, end = 100, return.wide = F){
   # Create a matrix of times and noise
-  time_matrix <- matrix(seq(0, len-1, freq), nrow = len, ncol = n)
-  noise_matrix <- replicate(n, rnorm(len, 0, noise))
+  tvec <- seq(0, end-1, by = freq)
+  time_matrix <- matrix(tvec, nrow = length(tvec), ncol = n)
+  noise_matrix <- replicate(n, rnorm(length(tvec), 0, noise))
   
   # Replace each shifted time by it sine function and add white noise
   sins <- sin(time_matrix)
@@ -53,7 +57,7 @@ sim_noisy_amplitude <- function(n, noise, freq = 1, len = 100, return.wide = F){
   
   # Go to data.table
   sins <- as.data.table(sins)
-  sins <- cbind(seq(0, len-1, freq), sins)
+  sins <- cbind(seq(0, end-1, by = freq), sins)
   colnames(sins)[1] <- "Time"
   if(return.wide){
     return(sins)  
