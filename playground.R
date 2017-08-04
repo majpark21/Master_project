@@ -116,12 +116,19 @@ Cora_mean <- dist_mean(data = Cora, condition = cond, tcol = tcol, measure = mea
 Cora_pw <- all_pairwise_stats(data = Cora, condition = cond, label = lab, measure = mea, k_roll_mean = 5)
 Cora_pw_long <- melt(Cora_pw, id.vars = c("Image_Metadata_Site", "Label1", "Label2"))
 
+# Mean plot
+p1 <- ggplot(Cora_mean[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = as.factor(Image_Metadata_Site), y = euclid_to_mean, text = paste("Label:", objNuc_TrackObjects_Label))) +
+  geom_violin(aes(group = as.factor(Image_Metadata_Site))) +
+  geom_jitter(alpha=1, aes(col = as.factor(Image_Metadata_Site)), width = 0.15) +
+  theme(legend.position="none")
+p2 <- ggplotly(p1)
+
 # PW plot
-p <- ggplot(Cora_pw_long[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = as.factor(Image_Metadata_Site), y = value, text = paste("Label1:", Label1, "; Label2:", Label2 ))) +
+q1 <- ggplot(Cora_pw_long[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = as.factor(Image_Metadata_Site), y = value, text = paste("Label1:", Label1, "; Label2:", Label2 ))) +
   geom_boxplot(aes(group = as.factor(Image_Metadata_Site))) + 
   geom_point(alpha = 0) +
   facet_grid(. ~ variable)
+q2 <- ggplotly(q1)
 
-q <- ggplotly(p)
 
-
+subplot(p2,q2)
