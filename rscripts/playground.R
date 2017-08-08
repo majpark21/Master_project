@@ -113,22 +113,88 @@ mea <- "Ratio"
 lab <- "objNuc_TrackObjects_Label"
 
 Cora_mean <- dist_mean(data = Cora, condition = cond, tcol = tcol, measure = mea, label = lab, return.mean = F)
+Cora_amp <- amplitude_oscillations(data = Cora, condition = cond, measure = mea, label = lab, k_roll_mean = 5)
 Cora_pw <- all_pairwise_stats(data = Cora, condition = cond, label = lab, measure = mea, k_roll_mean = 5)
 Cora_pw_long <- melt(Cora_pw, id.vars = c("Image_Metadata_Site", "Label1", "Label2"))
 
-# Mean plot
+# Mean plot - violin
 p1 <- ggplot(Cora_mean[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = as.factor(Image_Metadata_Site), y = euclid_to_mean, text = paste("Label:", objNuc_TrackObjects_Label))) +
   geom_violin(aes(group = as.factor(Image_Metadata_Site))) +
   geom_jitter(alpha=1, aes(col = as.factor(Image_Metadata_Site)), width = 0.15) +
-  theme(legend.position="none")
+  theme(legend.position="none") +
+  ggtitle("Euclidean Distance to Average Trajectory")
 p2 <- ggplotly(p1)
 
-# PW plot
+# PW plot - Boxplot
 q1 <- ggplot(Cora_pw_long[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = as.factor(Image_Metadata_Site), y = value, text = paste("Label1:", Label1, "; Label2:", Label2 ))) +
   geom_boxplot(aes(group = as.factor(Image_Metadata_Site))) + 
   geom_point(alpha = 0) +
-  facet_grid(. ~ variable)
+  facet_grid(. ~ variable) +
+  ggtitle("Pairwise metrics: Correlations and Overlap of Clipped Trajectories")
 q2 <- ggplotly(q1)
 
+# Mean plot - density
+r1 <- ggplot(Cora_mean[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = euclid_to_mean)) +
+  geom_density() +
+  facet_grid(Image_Metadata_Site ~ .) + 
+  ggtitle("Euclidean Distance to Average Trajectory")
 
-subplot(p2,q2)
+r2 <- ggplot(Cora_mean[Image_Metadata_Site %in% c(1,3,5,7)], aes(x= euclid_to_mean, colour = as.factor(Image_Metadata_Site), fill = as.factor(Image_Metadata_Site))) +
+  geom_density(size = 1.75, alpha = 0.1) +
+  ggtitle("Euclidean Distance to Average Trajectory") +
+  theme(legend.position="bottom")
+
+r3 <- ggplot(Cora_mean[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = as.factor(Image_Metadata_Site), y = euclid_to_mean, text = paste("Label:", objNuc_TrackObjects_Label))) +
+  geom_boxplot(aes(group = as.factor(Image_Metadata_Site))) +
+  theme(legend.position="none") +
+  ggtitle("Euclidean Distance to Average Trajectory")
+
+# PW plot - Densities
+s1 <- ggplot(Cora_pw_long[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = value)) +
+  geom_density() + 
+  facet_wrap(Image_Metadata_Site ~ variable) + 
+  ggtitle("Pairwise metrics: Correlations and Overlap of Clipped Trajectories")
+
+
+
+
+t1 <- ggplot(Cora_amp[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = as.factor(Image_Metadata_Site), y = euclid_to_roll_mean, text = paste("Label:", objNuc_TrackObjects_Label))) +
+  geom_violin(aes(group = as.factor(Image_Metadata_Site))) +
+  geom_jitter(alpha=1, aes(col = as.factor(Image_Metadata_Site)), width = 0.15) +
+  theme(legend.position="none") +
+  ggtitle("Euclidean Distance to individual Rolling Mean", "Indicates depth of oscillations")
+
+t2 <- ggplot(Cora_amp[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = as.factor(Image_Metadata_Site), y = euclid_to_roll_mean, text = paste("Label:", objNuc_TrackObjects_Label))) +
+  geom_boxplot(aes(group = as.factor(Image_Metadata_Site))) +
+  theme(legend.position="none") +
+  ggtitle("Euclidean Distance to individual Rolling Mean", "Indicates depth of oscillations")
+
+t3 <- ggplot(Cora_amp[Image_Metadata_Site %in% c(1,3,5,7)], aes(x = euclid_to_roll_mean)) +
+  geom_density() + 
+  facet_grid(Image_Metadata_Site ~ .) + 
+  ggtitle("Euclidean Distance to individual Rolling Mean", "Indicates depth of oscillations")
+
+t4 <- ggplot(Cora_amp[Image_Metadata_Site %in% c(1,3,5,7)], aes(x= euclid_to_roll_mean, colour = as.factor(Image_Metadata_Site), fill = as.factor(Image_Metadata_Site))) +
+  geom_density(size = 1.75, alpha = 0.1) +
+  ggtitle("Euclidean Distance to individual Rolling Mean", "Indicates depth of oscillations") +
+  theme(legend.position="bottom")
+
+
+pdf("Coherence_stats_Cora.pdf", height = 14, width = 20)
+grid.arrange(s1,q1, ncol=2)
+grid.arrange(p1, r3, r1,r2, ncol = 2)
+grid.arrange(t1, t2, t3, t4, ncol = 2)
+dev.off()
+
+
+###############################
+#   Amplitude oscillation     #
+###############################
+temp = amplitude_oscillations(Cora, "Image_Metadata_Site", "objNuc_TrackObjects_Label", "Ratio", 5)
+
+p <- ggplot(data = temp, aes(x = Image_Metadata_Site, y = euclid_to_roll_mean, text=objNuc_TrackObjects_Label)) + geom_boxplot(aes(group = Image_Metadata_Site)) + geom_point(alpha=0)
+p <- ggplotly(p)
+
+conds <- 0:7
+ks.p.val <- cbind(t(combn(conds, 2)), apply(combn(conds, 2), 2, function(x) ks.test(temp[Image_Metadata_Site==x[1], euclid_to_roll_mean], temp[Image_Metadata_Site==x[2], euclid_to_roll_mean])$p.value ))
+ks.p.val[,3] <- p.adjust(ks.p.val[,3], method = "holm")

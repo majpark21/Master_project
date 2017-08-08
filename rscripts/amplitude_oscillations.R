@@ -9,9 +9,3 @@ amplitude_oscillations <- function(data, condition, label, measure, k_roll_mean 
   out <- data[, .(euclid_to_roll_mean = sqrt( sum( (get(measure) - rollex(get(measure), k = k_roll_mean) )^2 )) ), by = c(condition, label)]
   return(out)
 }
-
-temp = amplitude_oscillations(Cora, "Image_Metadata_Site", "objNuc_TrackObjects_Label", "Ratio", 5)
-
-p <- ggplot(data = temp, aes(x = Image_Metadata_Site, y = euclid_to_roll_mean, text=objNuc_TrackObjects_Label)) + geom_boxplot(aes(group = Image_Metadata_Site)) + geom_point(alpha=0)
-p <- ggplotly(p)
-p

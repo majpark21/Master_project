@@ -11,8 +11,8 @@ Cora[, Ratio := objCyto_Intensity_MeanIntensity_imErkCorrOrig / objNuc_Intensity
 Clust[, c("Image_Metadata_Site", "objNuc_TrackObjects_Label") := strsplit(id, "_", fixed = T)]
 
 # Trajectories
-tr1 <- Cora[Well == 1 & objNuc_TrackObjects_Label == 1, Ratio]
-tr2 <- Cora[Well == 1 & objNuc_TrackObjects_Label == 2, Ratio]
+tr1 <- Cora[Image_Metadata_Site == 1 & objNuc_TrackObjects_Label == 1, Ratio]
+tr2 <- Cora[Image_Metadata_Site == 1 & objNuc_TrackObjects_Label == 2, Ratio]
 
 # Wavelet Transforms
 wv1 <- dwt(tr1, filter = "haar")
