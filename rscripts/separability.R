@@ -47,7 +47,11 @@ separability.measures <- function ( Vector.1 , Vector.2 ) {
   # --%<------------------------------------------------------------------------
   # and the transformed divergence
   transformed.divergence  <- 2 * ( 1 - exp ( - ( divergence / 8 ) ) )
+  
+  # KS stat
+  ks <- ks.test(Vector.1 , Vector.2)$statistic
+  
   indices <- data.frame(
-    jm=jm.distance,bh=bh.distance,div=divergence,tdiv=transformed.divergence)
+    jm=jm.distance,bh=bh.distance,div=divergence,tdiv=transformed.divergence, ks=ks)
   return(indices)
 }
