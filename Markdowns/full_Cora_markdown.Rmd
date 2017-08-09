@@ -69,16 +69,16 @@ Cora_pw
 
 Several possibilities here:
 
-* ks statistics
-* Bhattacharryya index
-* Jeffries-Matusita
-* divergence
-* transformed divergence
+* ks statistics: [0,1]
+* Bhattacharryya index: [0, +inf[
+* Jeffries-Matusita: [0, sqrt(2)], transformed Bhatta.
+* divergence (Kullback–Leibler?, close but not exactly that)
+* transformed divergence (transformed Kullback–Leibler?)
 
 
 ### Distance to mean trajectory
 
-```{r}
+```{r cache=T}
 conds <- 0:7
 comb <- combn(conds, 2)
 
@@ -93,7 +93,7 @@ sep.matrix
 
 If we represent only the oscillating conditons:
 
-```{r fig.width=20, fig.height=12, echo=F}
+```{r fig.width=20, fig.height=12, echo=F, cache=T}
 sep.melt <- melt(as.data.table(sep.matrix), id.vars = c("Condition1", "Condition2"))
 ggplot(sep.melt[variable!="div" & Condition1 %in% c(1,3,5,7) & Condition2 %in% c(1,3,5,7)], aes(x=as.factor(Condition1), y= as.factor(Condition2), fill=value)) +
   geom_tile() +
@@ -108,7 +108,7 @@ ggplot(sep.melt[variable!="div" & Condition1 %in% c(1,3,5,7) & Condition2 %in% c
 
 We can for each of the 4 pairwise measures (overlap and 3 types of correlation) get a separability matrix just like above. (code hidden for the sake of clarity)
 
-```{r echo=F, warning=F, message=F, fig.width=20, fig.height=20}
+```{r echo=F, warning=F, message=F, fig.width=20, fig.height=20, cache=T}
 sep.matrix.ovlp <- matrix(unlist(
   apply(comb, 2, function(x) separability.measures(Cora_pw[Image_Metadata_Site==x[1], Overlap], Cora_pw[Image_Metadata_Site==x[2], Overlap])))
   , ncol=5, byrow = T)
@@ -192,15 +192,39 @@ ggplot(sep.melt[variable!="div" & Condition1 %in% c(1,3,5,7) & Condition2 %in% c
 
 For this we will assume that all conditions oscillate at the same frequency, 0.2. The idea is to get the height of the peak for each trajectory in its power spectrum at this specific frequency. 
 
-```{r}
+```{r cache=T, fig.width=20, fig.height=12}
 # this doesn't work, but because freq 0.2 is always in 18th position so far...
 #power_height <- Cora[, .(height = spectrum(Ratio, plot=F)$spec[which(spectrum(Ratio, plot = F)$freq == 0.2)]), by = c(cond, lab)]
 power_height <- Cora[, .(height = spectrum(Ratio, plot=F)$spec[18]), by = c(cond, lab)]
 power_height[, c("Image_Metadata_Site", "objNuc_TrackObjects_Label") := list(as.factor(Image_Metadata_Site), as.factor(objNuc_TrackObjects_Label))]
-ggplot(power_height, aes(x= Image_Metadata_Site, y = height)) + geom_boxplot(aes(group=Image_Metadata_Site))
+
+library(gridExtra)
+p1 <- ggplot(power_height, aes(x= Image_Metadata_Site, y = height)) + geom_boxplot(aes(group=Image_Metadata_Site)) + ggtitle("Power at frequency 0.2", "Indicates amplitude of oscillations") + theme(axis.title = element_text(size = 30), plot.title = element_text(size = 30), plot.subtitle = element_text(size = 30))
+p2 <- ggplot(power_height, aes(x = log(height), fill = Image_Metadata_Site, colour = Image_Metadata_Site)) + geom_density(alpha=0.1) + ggtitle("","") + facet_grid(Image_Metadata_Site ~ .) + theme(axis.title = element_text(size = 30))
+grid.arrange(p1, p2, ncol = 2) 
 ```
 
+```{r}
+sep.matrix <- matrix(unlist(
+  apply(comb, 2, function(x) separability.measures(power_height[Image_Metadata_Site==x[1], height], power_height[Image_Metadata_Site==x[2], height])))
+  , ncol=5, byrow = T)
 
+sep.matrix <- cbind(t(comb), sep.matrix)
+colnames(sep.matrix) <- c("Condition1", "Condition2", "jm", "bh", "div", "tdiv", "ks")
+sep.matrix
+```
+
+If we represent only the oscillating conditons:
+
+```{r fig.width=20, fig.height=12, echo=F}
+sep.melt <- melt(as.data.table(sep.matrix), id.vars = c("Condition1", "Condition2"))
+ggplot(sep.melt[variable!="div" & Condition1 %in% c(1,3,5,7) & Condition2 %in% c(1,3,5,7)], aes(x=as.factor(Condition1), y= as.factor(Condition2), fill=value)) +
+  geom_tile() +
+  facet_grid(. ~ as.factor(variable)) +
+  coord_equal() +
+  theme(text = element_text(size=30), plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) +
+  ggtitle("Power of signal at frequency 0.2", "Assess amplitude of oscillations")
+```
 
 # Alternative: SMETS
 
@@ -208,7 +232,7 @@ Method that compare directly conditions and assign a distance between them. It i
 
 Provided in a Matlab script (can run it with octave), results are:
 
-```{r comment='', warning=F, message=F, echo=F}
+```{r comment='', warning=F, message=F, echo=F, cache=T}
 library(stringr)
 library(data.table)
 res <- readLines('../../SMETS/results.txt')
