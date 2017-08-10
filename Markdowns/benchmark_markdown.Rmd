@@ -1,11 +1,12 @@
 ---
-title: "Benchmarks - Cell synchrony"
+title: "Benchmarks - Cell synchrony and 'causality'"
 author: "Jacques Marc-Antoine"
 date: "2 août 2017"
 output:
   html_document:
     fig_width: 21
     toc: true
+    number_sections: true
 ---
 
 ```{r setup, include=FALSE}
@@ -13,7 +14,7 @@ knitr::opts_chunk$set(cache=TRUE)
 ```
 
 
-## 1. Function definition (hidden in html)
+# Function definition (hidden in html)
 
 ```{r echo=FALSE}
 dist_mean <- function(data, condition, tcol, measure, label, return.mean = F){
@@ -152,6 +153,59 @@ sim_noisy_amplitude <- function(n, noise, freq = 1, end = 100, return.wide = F){
 }
 
 
+sim_expodecay_lagged_stim <- function(n, noise, interval.stim = 5, lambda = 0.2, freq = 1, end = 100, return.wide = F){
+  # A fucntion to simulate a population of n trajectories of expo decay, that are taken up at regular time by stimulus.
+  # The noise add a lag between the stimulus and the increase.
+  # n: number of trajectories
+  # noise: standard deviation for the lag
+  # interval.stim: how long between each stimulation?
+  # lambda: desintegration rate
+  # freq: sampling rate (in time unit), how often do we compute the state of the system
+  # end: end time of simulations
+  # return.wide: returns data in wide or long format
+  
+  # Time vector
+  tvec <- seq(0, end-1, by = freq)
+  # Matrix with stimulation times
+  stim_time <- seq(interval.stim, end-1 , interval.stim)
+  stim_time_matrix <- matrix(stim_time, nrow = length(stim_time), ncol = n)
+  
+  # Randomize the stimulation times (represent random lag), forbid lag < 0
+  noise_matrix <- abs(replicate(n, rnorm(n = length(stim_time), mean = 0, sd = noise)))
+  stim_time_matrix <- stim_time_matrix + noise_matrix
+  
+  # Initialize trajectories with 0 everywhere, set to 1 at stimulus times
+  trajs <- matrix(0, nrow = length(tvec), ncol = n)
+  for(col in 1:ncol(stim_time_matrix)){
+    for(row in 1:nrow(stim_time_matrix)){
+      index <- which(tvec >= stim_time_matrix[row, col])[1]
+      trajs[index, col] <- 1
+    }
+  }
+  
+  # Expo decay computed thanks to previous value
+  decrease_factor <- exp(-lambda * freq)
+  for(col in 1:ncol(trajs)){
+    for(row in 2:nrow(trajs)){
+      # If not at a stim time, decay
+      if(trajs[row, col] != 1){trajs[row, col] <- trajs[row-1, col] * decrease_factor}
+    }
+  }
+  
+  # Go to data.table
+  trajs <- as.data.table(trajs)
+  trajs <- cbind(seq(0, end-1, by = freq), trajs)
+  colnames(trajs)[1] <- "Time"
+  if(return.wide){
+    return(trajs)  
+  }
+  
+  # Format long data table
+  trajs <- melt(trajs, id.vars = "Time")
+  return(trajs)
+}
+
+
 multi_sims <- function(type, noises, ...){
   # /!\ not optimized, growing data table
   # Generate multiple simulations of the indicated type.
@@ -159,21 +213,24 @@ multi_sims <- function(type, noises, ...){
   # ps: phase shifted
   # pst: phase shifted with linear trend
   # na: noisy amplitude
+  # edls: expo decay lagged stimulation
   
-  if(!(type %in% c("ps", "pst", "na"))){
-    stop("type must be one of c('ps', 'pst', 'na')")
+  if(!(type %in% c("ps", "pst", "na", "edls"))){
+    stop("type must be one of c('ps', 'pst', 'na', 'edls')")
   }
   
   # Initialize data.table with no noise
   if(type == "ps"){multi_sim <- sim_phase_shifted(noise = 0, ...)}
   else if(type == "pst"){multi_sim <- sim_phase_shifted_with_fixed_trend(noise = 0, ...)}
   else if(type == "na"){multi_sim <- sim_noisy_amplitude(noise = 0, ...)}
+  else if(type == "edls"){multi_sim <- sim_expodecay_lagged_stim(noise = 0, ...)}
   
   multi_sim$noise <- 0
   for(noise in noises){
     if(type == "ps"){temp <- sim_phase_shifted(noise = noise, ...)}
     else if(type == "pst"){temp <- sim_phase_shifted_with_fixed_trend(noise = noise, ...)}
     else if(type == "na"){temp <- sim_noisy_amplitude(noise = noise, ...)}
+    else if(type == "edls"){temp <- sim_expodecay_lagged_stim(noise = noise, ...)}
     temp$noise <- noise
     multi_sim <- rbind(multi_sim, temp)
   }
@@ -280,7 +337,7 @@ all_pairwise_stats <- function(data, condition, label, measure, k_roll_mean = 5)
 
 
 
-## 2. Data Simulation
+# Data Simulation
 
 ```{r message=F, fig.height=21}
 n <- 50 # number of trajectories per noise level
@@ -300,7 +357,7 @@ plot_sim(pst)
 plot_sim(na)
 ```
 
-## 3. Distance to Mean
+# Distance to Mean
 
 For each condition, this computes the distance between the average trajectory and each individual trajectory.
 
@@ -317,7 +374,7 @@ pst_mean <- dist_mean(data = pst, condition = cond, tcol = ti, measure = mea, la
 na_mean <- dist_mean(data = na, condition = cond, tcol = ti, measure = mea, label = lab, return.mean = F)
 ```
 
-## 4. Pairwise Distances: Overlap clipping, Correlations Pearson, Spearman, Kendall
+# Pairwise Distances: Overlap clipping, Correlations Pearson, Spearman, Kendall
 
 For each condition, take each pair of trajectories and compute the correlations between them (Pearson, Spearman and Kendall). In addition it clips the trajectories by comparison with their rolling means: whenever the trajectory is above its rolling mean, set it to 1 otherwise to 0. Finally for each pair of trajectories, the "overlap" metric, represents how often the trajectories of the pair have same value (i.e. 0.5 if complete random, 1 if they fully overlap).
 
@@ -331,9 +388,9 @@ na_pw <- all_pairwise_stats(data = na, condition = cond, label = lab, measure = 
 ```
 
 
-## 5. Plots of the distributions (code hidden in HTML)
+# Plots of the distributions (code hidden in HTML)
 
-#### Euclidean distance to the mean trajectory / !!! scale in y !!!
+## Euclidean distance to the mean trajectory / !!! scale in y !!!
 
 ```{r message=F, echo=F, fig.height=10}
 library(ggplot2)
@@ -348,7 +405,7 @@ p3 <- ggplot(na_mean, aes(x= noise, y = euclid_to_mean)) + geom_boxplot(aes(grou
 grid.arrange(p1, p2, p3, ncol = 3)
 ```
 
-#### Pairwise Overlap of clipped trajectories
+## Pairwise Overlap of clipped trajectories
 
 ```{r message=F, echo=F, fig.height=10}
 # Overlap
@@ -359,7 +416,7 @@ grid.arrange(q1, q2, q3, ncol = 3)
 ```
 
 
-#### Pairwise Pearson correlations
+## Pairwise Pearson correlations
 
 ```{r message=F, echo=F, fig.height=10}
 r1 <- ggplot(ps_pw, aes(x = noise, y = Pearson)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(-1,1))
@@ -368,7 +425,7 @@ r3 <- ggplot(na_pw, aes(x = noise, y = Pearson)) + geom_boxplot(aes(group = nois
 grid.arrange(r1, r2, r3, ncol = 3)
 ```
 
-#### Pairwise Spearman correlations
+## Pairwise Spearman correlations
 
 ```{r message=F, echo=F, fig.height=10}
 s1 <- ggplot(ps_pw, aes(x = noise, y = Spearman)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(-1,1))
@@ -377,7 +434,7 @@ s3 <- ggplot(na_pw, aes(x = noise, y = Spearman)) + geom_boxplot(aes(group = noi
 grid.arrange(s1, s2, s3, ncol = 3)
 ```
 
-#### Pairwise Kendall correlations
+## Pairwise Kendall correlations
 
 ```{r message=F, echo=F, fig.height=10}
 t1 <- ggplot(ps_pw, aes(x = noise, y = Kendall)) + geom_boxplot(aes(group = noise)) + ggtitle("Phase Shifted") + scale_y_continuous(limits = c(-1,1))
@@ -387,7 +444,7 @@ grid.arrange(t1, t2, t3, ncol = 3)
 ```
 
 
-## 6. Relations between the metrics
+# Relations between the metrics
 
 ```{r}
 cor(ps_pw[, 4:7])
@@ -396,14 +453,14 @@ cor(na_pw[, 4:7])
 ```
 
 
-## 7. How to go from a distribution to a single value for each metrics
+# How to go from a distribution to a single value for each metrics
 
-#### Distance to mean trajectory
+## Distance to mean trajectory
 
 For each condition, count the proportion of trajectories that are lying more than x standard deviation from the mean (conversion to z-score first?).
 
 
-#### Correlations and Overlap
+## Correlations and Overlap
 
 Get a p-value:
 Assume that they are normally distributed, check that the distributions lies above 0 for correlations and above 0.5 for clipping (t-test).
@@ -426,7 +483,7 @@ na_pw[noise !=0 , .(p.val.pears = t.test(Pearson)$p.value,
 ```
 
 
-## 8. Effect of window size in rolling mean for clipped trajectories
+# Effect of window size in rolling mean for clipped trajectories
 
 
 If we increase sampling rate, it means that there is more points per oscillation. Visually this means that the average trajectory is smoother. 
@@ -516,4 +573,57 @@ na_high_freq_pw <- all_pairwise_stats(data = na_high_freq, condition = cond, lab
 q3_high <- ggplot(na_high_freq_pw, aes(x = noise, y = Overlap)) + geom_boxplot(aes(group = noise)) + ggtitle("Window Size: 5; Freq: 0.2 (window too small)") + scale_y_continuous(limits = c(0,1))
 grid.arrange(q3 + ggtitle("Window Size: 5; Freq: 1 (window of the right size)"), q3_high, ncol = 2)
 ```
+
+
+# Synchrony between cell and stimulus ("causality") - Maximum cross-correlation / convolution
+
+To assess this we define a new kind of simulations, which are made of "pulsed" exponential decays. The signal behaves as regular exponential decay but once in a while, a stimulus brings the signal back to its maximum (i.e. 1). The noise in these simulation is a random lag between the time at which the stimulus is applied and the time at which the signal is effectively going up. 
+
+```{r fig.height=21}
+# edls: exponential decay with lagged stimulation; 5 time units between each pulse
+edls <- multi_sims(type = "edls", noises = noises, n = n, freq = 0.2, interval.stim = 5)
+plot_sim(edls)
+```
+
+
+We can represent the stimuli pattern by another time series:
+```{r}
+# Array of 0 of the same length as a trajectory
+stim <- rep(0, 496)
+stim[seq(25,496,25)] <- 1
+
+# Plot a trajectory without lag along with the stimulation pattern
+plot(edls[variable=="V1" & noise==0, value], type = "l", lwd = 2)
+lines(stim, type="s", col = "blue", lwd = 1)
+```
+
+Cross-correlation (or convolution, definitions seems to vary from one author to another, but it's the same operation provided that we've flipped the stimulation pattern beforehand and have normalized the output; convolution is easier to interprete as a weighted average of one signal, weights being given by the other signal) computes an array of correlations of one signal by sliding another signal on it. The higher this correlation the more the curves look alike with the given sliding shift (lag).
+
+```{r fig.width=12, fig.align="center"}
+ccf(edls[variable=="V1" & noise==0, value], stim, ylab = "Correlation coefficient")
+cor(edls[variable=="V1" & noise==0, value], stim)
+```
+
+We see that the correlation without shift is actually negative whereas it is maximal if we shift the stimulation pattern by 1. The optimal lag is 1 and not 0 due to the way simulations were built. Provided that we sample the signal every 0.2 time unit, see `edls <- multi_sims(type = "edls", noises = noises, n = n, freq = 0.2, interval.stim = 5)`, this would mean that the cells max response happens 0.2 time unit after the stimulus (once again here we should read 0, but it's an artefact of the simulation building).
+
+Here we'll isolate the highest peak of cross-correlation between each trajectory and the stimulation pattern to essentially look at 2 things: the height of the peak which should inform about the strength of the association (the "causality" of the stimulation on the signal) and the associated lag (how long does it take for the cells to fully respond to the signal).
+
+```{r fig.width=12}
+get.max.cc <- function(ts1, ts2, plot = F, ...){
+  temp <- ccf(ts1, ts2, plot = plot, ...)
+  max.indx <- which.max(temp$acf)
+  return(list(temp$acf[max.indx], temp$lag[max.indx]))
+}
+
+cc.stim <- copy(edls)
+cc.stim[, c("max.cc", "lag") := get.max.cc(value, stim, plot = F), by = .(noise, variable)]
+cc.stim[, noise := as.factor(noise)]
+
+ggplot(cc.stim, aes(x = noise, y = max.cc)) + geom_boxplot(aes(group=noise))
+ggplot(cc.stim, aes(x = noise, y = lag)) + geom_boxplot(aes(group=noise))
+```
+
+Note that in these simulations the lag is random for each pulse within a single trajectory, we might expect the cells to have a more robust response that will always provide "more or less" the same lag. In other words, in the simulations we add a mirrored normal noise centered around 0 to determine the lag and change the sd according to the noise, but we could also change the mean of the normal distribution.
+
+
 
