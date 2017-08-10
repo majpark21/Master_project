@@ -259,3 +259,27 @@ ggplot(smets, aes(x=Condition1, y= Condition2, fill=SMETS)) +
 smets
 ```
 
+
+# Cross-Correlation stimulations vs trajectories
+
+Find the best lag to align stimulus and signal. This gives the best possible correlation as well as the response time of the cells.
+
+```{r fig.width=12}
+get.max.cc <- function(ts1, ts2, plot = F, ...){
+  temp <- ccf(ts1, ts2, plot = plot, ...)
+  max.indx <- which.max(temp$acf)
+  return(list(temp$acf[max.indx], temp$lag[max.indx]))
+}
+
+# Time series representing the stimuli, here one pulse every 5min starting at 11min til 66min
+stim <- rep(0, 90)
+stim[seq(11,66,5)] <- 1
+
+cc.stim <- copy(Cora)
+cc.stim[, c("max.cc", "best.lag") := get.max.cc(Ratio, stim, plot = F), by = .(Image_Metadata_Site, objNuc_TrackObjects_Label)]
+cc.stim[, c("Image_Metadata_Site", "objNuc_TrackObjects_Label") := list(as.factor(Image_Metadata_Site), as.factor(objNuc_TrackObjects_Label))]
+
+ggplot(cc.stim, aes(x = Image_Metadata_Site, y = max.cc)) + geom_boxplot(aes(group=Image_Metadata_Site))
+ggplot(cc.stim, aes(x = Image_Metadata_Site, y = best.lag)) + geom_boxplot(aes(group=Image_Metadata_Site))
+```
+

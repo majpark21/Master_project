@@ -626,4 +626,14 @@ ggplot(cc.stim, aes(x = noise, y = lag)) + geom_boxplot(aes(group=noise))
 Note that in these simulations the lag is random for each pulse within a single trajectory, we might expect the cells to have a more robust response that will always provide "more or less" the same lag. In other words, in the simulations we add a mirrored normal noise centered around 0 to determine the lag and change the sd according to the noise, but we could also change the mean of the normal distribution.
 
 
+Insensitive to input amplitude: 
+
+```{r fig.width=12}
+cc.stim[, value := value * 3]
+cc.stim[, c("max.cc", "lag") := get.max.cc(value, stim, plot = F), by = .(noise, variable)]
+
+ggplot(cc.stim, aes(x = noise, y = max.cc)) + geom_boxplot(aes(group=noise))
+ggplot(cc.stim, aes(x = noise, y = lag)) + geom_boxplot(aes(group=noise))
+```
+
 
