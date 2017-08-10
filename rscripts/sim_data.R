@@ -69,6 +69,59 @@ sim_noisy_amplitude <- function(n, noise, freq = 1, end = 100, return.wide = F){
 }
 
 
+sim_expodecay_lagged_stim <- function(n, noise, interval.stim = 5, lambda = 0.2, freq = 1, end = 100, return.wide = F){
+  # A fucntion to simulate a population of n trajectories of expo decay, that are taken up at regular time by stimulus.
+  # The noise add a lag between the stimulus and the increase.
+  # n: number of trajectories
+  # noise: standard deviation for the lag
+  # interval.stim: how long between each stimulation?
+  # lambda: desintegration rate
+  # freq: sampling rate (in time unit), how often do we compute the state of the system
+  # end: end time of simulations
+  # return.wide: returns data in wide or long format
+  
+  # Time vector
+  tvec <- seq(0, end-1, by = freq)
+  # Matrix with stimulation times
+  stim_time <- seq(interval.stim, end-1 , interval.stim)
+  stim_time_matrix <- matrix(stim_time, nrow = length(stim_time), ncol = n)
+  
+  # Randomize the stimulation times (represent random lag), forbid lag < 0
+  noise_matrix <- abs(replicate(n, rnorm(n = length(stim_time), mean = 0, sd = noise)))
+  stim_time_matrix <- stim_time_matrix + noise_matrix
+  
+  # Initialize trajectories with 0 everywhere, set to 1 at stimulus times
+  trajs <- matrix(0, nrow = length(tvec), ncol = n)
+  for(col in 1:ncol(stim_time_matrix)){
+    for(row in 1:nrow(stim_time_matrix)){
+      index <- which(tvec >= stim_time_matrix[row, col])[1]
+      trajs[index, col] <- 1
+    }
+  }
+  
+  # Expo decay computed thanks to previous value
+  decrease_factor <- exp(-lambda * freq)
+  for(col in 1:ncol(trajs)){
+    for(row in 2:nrow(trajs)){
+      # If not at a stim time, decay
+      if(trajs[row, col] != 1){trajs[row, col] <- trajs[row-1, col] * decrease_factor}
+    }
+  }
+  
+  # Go to data.table
+  trajs <- as.data.table(trajs)
+  trajs <- cbind(seq(0, end-1, by = freq), trajs)
+  colnames(trajs)[1] <- "Time"
+  if(return.wide){
+    return(trajs)  
+  }
+  
+  # Format long data table
+  trajs <- melt(trajs, id.vars = "Time")
+  return(trajs)
+}
+
+
 multi_sims <- function(type, noises, ...){
   # /!\ not optimized, growing data table
   # Generate multiple simulations of the indicated type.
@@ -76,21 +129,24 @@ multi_sims <- function(type, noises, ...){
   # ps: phase shifted
   # pst: phase shifted with linear trend
   # na: noisy amplitude
+  # edls: expo decay lagged stimulation
   
-  if(!(type %in% c("ps", "pst", "na"))){
-    stop("type must be one of c('ps', 'pst', 'na')")
+  if(!(type %in% c("ps", "pst", "na", "edls"))){
+    stop("type must be one of c('ps', 'pst', 'na', 'edls')")
   }
   
   # Initialize data.table with no noise
   if(type == "ps"){multi_sim <- sim_phase_shifted(noise = 0, ...)}
   else if(type == "pst"){multi_sim <- sim_phase_shifted_with_fixed_trend(noise = 0, ...)}
   else if(type == "na"){multi_sim <- sim_noisy_amplitude(noise = 0, ...)}
+  else if(type == "edls"){multi_sim <- sim_expodecay_lagged_stim(noise = 0, ...)}
   
   multi_sim$noise <- 0
   for(noise in noises){
     if(type == "ps"){temp <- sim_phase_shifted(noise = noise, ...)}
     else if(type == "pst"){temp <- sim_phase_shifted_with_fixed_trend(noise = noise, ...)}
     else if(type == "na"){temp <- sim_noisy_amplitude(noise = noise, ...)}
+    else if(type == "edls"){temp <- sim_expodecay_lagged_stim(noise = noise, ...)}
     temp$noise <- noise
     multi_sim <- rbind(multi_sim, temp)
   }
