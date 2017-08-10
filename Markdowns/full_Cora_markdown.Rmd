@@ -283,3 +283,4 @@ ggplot(cc.stim, aes(x = Image_Metadata_Site, y = max.cc)) + geom_boxplot(aes(gro
 ggplot(cc.stim, aes(x = Image_Metadata_Site, y = best.lag)) + geom_boxplot(aes(group=Image_Metadata_Site))
 ```
 
+We see that the correlation between pulses and condition 7 is bigger than for the other ones, what shows that there is globally less noise in these trajectories. In addition we see that for the cyclic conditions the lag before max response is always of 4 min, plus the distributions are extremely tight. This is coherent with the previous observations that all cells are well-synchronised together, and we can now say also with the stimulation.
