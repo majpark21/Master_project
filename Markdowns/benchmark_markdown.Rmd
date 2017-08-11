@@ -577,6 +577,7 @@ grid.arrange(q3 + ggtitle("Window Size: 5; Freq: 1 (window of the right size)"),
 
 # Synchrony between cell and stimulus ("causality") - Maximum cross-correlation / convolution
 
+## Simulation: pulsed and lagged exponential decay
 To assess this we define a new kind of simulations, which are made of "pulsed" exponential decays. The signal behaves as regular exponential decay but once in a while, a stimulus brings the signal back to its maximum (i.e. 1). The noise in these simulation is a random lag between the time at which the stimulus is applied and the time at which the signal is effectively going up. 
 
 ```{r fig.height=21}
@@ -585,7 +586,7 @@ edls <- multi_sims(type = "edls", noises = noises, n = n, freq = 0.2, interval.s
 plot_sim(edls)
 ```
 
-
+## Stimuli representation
 We can represent the stimuli pattern by another time series:
 ```{r}
 # Array of 0 of the same length as a trajectory
@@ -596,6 +597,8 @@ stim[seq(25,496,25)] <- 1
 plot(edls[variable=="V1" & noise==0, value], type = "l", lwd = 2)
 lines(stim, type="s", col = "blue", lwd = 1)
 ```
+
+## Optimal lag and maximal cross-correlation
 
 Cross-correlation (or convolution, definitions seems to vary from one author to another, but it's the same operation provided that we've flipped the stimulation pattern beforehand and have normalized the output; convolution is easier to interprete as a weighted average of one signal, weights being given by the other signal) computes an array of correlations of one signal by sliding another signal on it. The higher this correlation the more the curves look alike with the given sliding shift (lag).
 
@@ -626,6 +629,8 @@ ggplot(cc.stim, aes(x = noise, y = lag)) + geom_boxplot(aes(group=noise))
 Note that in these simulations the lag is random for each pulse within a single trajectory, we might expect the cells to have a more robust response that will always provide "more or less" the same lag. In other words, in the simulations we add a mirrored normal noise centered around 0 to determine the lag and change the sd according to the noise, but we could also change the mean of the normal distribution.
 
 
+## Unsensitivity to signal amplitude (without noise)
+
 Insensitive to input amplitude: 
 
 ```{r fig.width=12}
@@ -636,4 +641,47 @@ ggplot(cc.stim, aes(x = noise, y = max.cc)) + geom_boxplot(aes(group=noise))
 ggplot(cc.stim, aes(x = noise, y = lag)) + geom_boxplot(aes(group=noise))
 ```
 
+Exactly same results as before.
 
+## Sensitivity to noise in amplitude
+
+We perform simulations without lag in the response, but add white noise to the signal amplitude:
+
+```{r fig.height=21}
+# Run the simulation without lag in response 15 times (14 + 1 internally computed)
+edls <- multi_sims(type = "edls", noises = rep(0, 14), n = n, freq = 0.2, interval.stim = 5)
+
+# Add the white noise with different sd
+nber.per.condition <- 496 * n  # 496 data points per trajectory 
+# Define the levels of noise
+nois <- rep(seq(0, 0.56, 0.04), each = nber.per.condition)
+edls$noise <- nois
+# Produce the noise and add it
+nois <- sapply(nois, function(x) 0 + rnorm(1, mean = 0, sd = x))
+edls[, value := value + nois]
+
+plot_sim(edls)
+```
+
+Even though the mean trajectory look alike along noise level, individual trajectories get completly denatured with the highest levels of noise. Remember that the signal vary between 0 and 1; for a noise level of 0.28, the probability to get a noise of 0.1 or more is: `r 1-pnorm(0.1, 0, 0.28)`; it becomes `r 1-pnorm(0.1, 0, 0.56)` for a noise level of 0.56.
+
+```{r fig.width=12, fig.height=12}
+par(mfrow = c(3,1))
+plot(edls[variable == "V1" & noise == 0, value], type = "l"); abline(h=c(0,1), lty='dashed')
+plot(edls[variable == "V1" & noise == 0.28, value], type = "l"); abline(h=c(0,1), lty='dashed')
+plot(edls[variable == "V1" & noise == 0.56, value], type = "l"); abline(h=c(0,1), lty='dashed')
+```
+
+
+Effect on cross-correlation with the stimulation pattern:
+
+```{r fig.width=12}
+cc.stim <- copy(edls)
+cc.stim[, c("max.cc", "lag") := get.max.cc(value, stim, plot = F), by = .(noise, variable)]
+cc.stim[, noise := as.factor(noise)]
+
+ggplot(cc.stim, aes(x = noise, y = max.cc)) + geom_boxplot(aes(group=noise))
+ggplot(cc.stim, aes(x = noise, y = lag)) + geom_boxplot(aes(group=noise))
+```
+
+We see that CC is much less sensitive to noise in amplitude than to noise in lag before response.
