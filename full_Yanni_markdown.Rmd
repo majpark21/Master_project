@@ -1,0 +1,55 @@
+---
+title: "Full analysis - Yannick dataset"
+author: "Jacques Marc-Antoine"
+date: "11 août 2017"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+source("rscripts/package.R")
+```
+
+
+# Background, observations, questions
+
+Each GF binds to a receptor and triggers a cascade that include ERK plus others. But it is important for the cell to respond adequatly to the signal, e.g. proliferation vs differentiation. Each GF induce a different type of response when applied in a sustained fashion:
+
+* EGF: transient activation of ERK, triggers proliferation. The higher ERK concentration, the sharper the peak of response gets, due to negative feedback that are proportionally activated.
+* NGF: sustained activation of ERK, triggers differentiation. Behaviour remains indetical whatever the concentration.
+* FGF: different behaviours depending on the concentration. Low concentrations induce a sustained response while higher concentrations induce a transient activation followed by an increasing/sustained response.
+
+Clustering gives us ways to see these different behaviours, but we would like a way to put numbers on these differences in behaviour, maybe eventually to automatically detect them. 
+
+Data look like:
+```{r cache=TRUE, warning=FALSE, fig.height=12, fig.width=21}
+ggplot(Yanni, aes(y=Intensity_MeanIntensity_Ratio, x=RealTime)) + geom_line(aes(group=TrackObjects_Label_uni)) + facet_wrap(~Condition) + scale_y_continuous(limits = c(1000, 1750)) + scale_x_continuous(limits = c(0,200)) + stat_summary(fun.y=mean, geom="line", colour = "blue", size = 1.5) + theme(text = element_text(size = 25))
+```
+
+
+# Clustering quality
+
+Idea: Hclust, Kmeans... Use the clustering quality criteria (David-Bouldin, Dunn...) as a measure of distance between the clusters.
+
+# Separability of snapshots between concentrations of the same GF
+
+Idea: For a given GF, at each time point and for each concentration get the signal distribution, check if they overlap well between different concentrations. Overlap can be measured by KS statistics, Bhattacharryya index, Kullback–Leibler...
+
+# Cross-Correlations/Coherence between concentrations of the same GF
+
+Idea: For each GF, compare each pair of trajectories that do not belong to the same concentrations. This comparison can be done by cross-correlation/overlap of clipping trajectories, simple correlations... Cross-correlations provides a way to align the signals as best as we can be shifting this is cool to get rid of differences that would come from experimental conditions like we've been waiting 5 more minutes to inject the GF.
+
+Could also check coherence (cross-correlation based on spectral densities).
+
+# Information theory approach: entropy of heatmap / signal
+
+Idea: Quantize the signals and check how complex they are. Pool all concentrations of a single GF together and see how complex the resulting image is. We can quantize the signals and compute the entropy, or do it directly from a heatmap (quantization is then performed by color coding).    
+
+
+
