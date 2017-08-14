@@ -13,29 +13,196 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-source("rscripts/package.R")
+source("../rscripts/package.R")
 ```
 
 
 # Background, observations, questions
 
-Each GF binds to a receptor and triggers a cascade that include ERK plus others. But it is important for the cell to respond adequatly to the signal, e.g. proliferation vs differentiation. Each GF induce a different type of response when applied in a sustained fashion:
+Each GF binds to a receptor and triggers a cascade that includes ERK plus others. But it is important for the cell to respond adequatly to the signal, e.g. proliferation vs differentiation. Each GF induces a different type of response when applied in a sustained fashion:
 
 * EGF: transient activation of ERK, triggers proliferation. The higher ERK concentration, the sharper the peak of response gets, due to negative feedback that are proportionally activated.
-* NGF: sustained activation of ERK, triggers differentiation. Behaviour remains indetical whatever the concentration.
+* NGF: sustained activation of ERK, triggers differentiation. Behaviour remains indentical whatever the concentration.
 * FGF: different behaviours depending on the concentration. Low concentrations induce a sustained response while higher concentrations induce a transient activation followed by an increasing/sustained response.
 
 Clustering gives us ways to see these different behaviours, but we would like a way to put numbers on these differences in behaviour, maybe eventually to automatically detect them. 
 
 Data look like:
-```{r cache=TRUE, warning=FALSE, fig.height=12, fig.width=21}
-ggplot(Yanni, aes(y=Intensity_MeanIntensity_Ratio, x=RealTime)) + geom_line(aes(group=TrackObjects_Label_uni)) + facet_wrap(~Condition) + scale_y_continuous(limits = c(1000, 1750)) + scale_x_continuous(limits = c(0,200)) + stat_summary(fun.y=mean, geom="line", colour = "blue", size = 1.5) + theme(text = element_text(size = 25))
+```{r}
+# Remove unnecessary columns for clarity
+head(Yanni)
+del.cols <- names(Yanni)[5:9]
+Yanni[, (del.cols) := NULL]
+Yanni
+```
+
+```{r warning=FALSE, cache=TRUE, fig.height=12, fig.width=21}
+ggplot(Yanni, aes(y=Ratio, x=RealTime)) + geom_line(aes(group=Label)) + facet_wrap(~Condition) + scale_y_continuous(limits = c(1000, 1750)) + scale_x_continuous(limits = c(0,200)) + stat_summary(fun.y=mean, geom="line", colour = "blue", size = 1.5) + theme(text = element_text(size = 25))
 ```
 
 
 # Clustering quality
 
 Idea: Hclust, Kmeans... Use the clustering quality criteria (David-Bouldin, Dunn...) as a measure of distance between the clusters.
+
+Here Kmeans/Kmedoids seem appropriate, we guess that the number of clusters should be no more than let's say 10. 
+
+
+## Data normalization
+
+Prior to clustering, normalize data since the computations of distances between TS always relie on some kind of Euclidean distance.  We use the fold-change "Korean way", which normalizes in a per trajectory fashion. 
+
+* Time range used for normalization: 0-36
+* Trim x-axis (time): 0-200
+
+```{r}
+# Normalization
+Yanni_norm <- myNorm(in.dt = Yanni, in.meas.col = "Ratio", in.rt.min = 0, in.rt.max = 36, in.by.cols = c("Condition", "Label"), in.type = "fold.change")
+# X trimming
+Yanni_norm <- Yanni_norm[RealTime <= 200]
+```
+
+
+## Smoothing
+
+Erase small variations in the signal that are not relevant for distance computation, smooth out high frequency variations (noise).
+```{r fig.height=12, fig.width=21, message=FALSE}
+Yanni_norm[, Ratio.norm.smooth := rollex(Ratio.norm, k = 5), by = c("Condition", "Label")]
+Yanni_norm
+
+# Plot first trajetory
+par(mfrow=c(3,1))
+plot(Yanni_norm[Condition=="E-0.25" & Label=="12_0002", Ratio], type = "b", ylab = "value", cex.main=3, cex.axis=2.5, main = "Raw")
+plot(Yanni_norm[Condition=="E-0.25" & Label=="12_0002", Ratio.norm], type = "b", ylab = "value", cex.main=3, cex.axis=2.5, main = "Normalized")
+plot(Yanni_norm[Condition=="E-0.25" & Label=="12_0002", Ratio.norm.smooth], type = "b", ylab = "value", cex.main=3, cex.axis=2.5, main = "Normalized and smoothed")
+```
+
+
+## Clustering
+
+Will use a method based on DTW, much more tailored to TS than classical Euclidean distance.
+
+```{r}
+CastCluster <- function(data, time.col, label.col, measure.col, k.clust, na.fill, plot = T, ...){
+  # Cast to wide and cluster
+  require(dtwclust)
+  temp <- copy(data)
+  temp <- dcast(temp, get(label.col) ~ get(time.col), value.var = measure.col)
+  temp <- as.matrix(temp[, -1]) # remove first columns with labels
+  temp[which(is.na(temp))] <- na.fill
+  
+  clust <- tsclust(temp, type = "partitional", k = k.clust, distance = "dtw_basic", centroid = "pam", seed = 42, ...)
+  names(clust) <- paste0("k_", k.clust)
+  quality <- sapply(clust, cvi, type = "internal")
+  
+  if(plot){
+    require(ggplot2)
+    mquality <- melt(quality)
+    names(mquality) <- c("Stat", "Nb.Clust", "value")
+    plot(ggplot(mquality, aes(x=Nb.Clust, y = value)) + geom_col(aes(group = Nb.Clust, fill = Nb.Clust)) + facet_grid(Stat ~ ., scales = "free_y"))
+  }
+  
+  return(list(cluster = clust, quality = quality))
+}
+```
+
+### EGF
+
+#### With unormalized and unsmoothed data
+
+```{r cache=T, message=F}
+EGF <- Yanni_norm[Condition %in% c("E-0.25","E-2.5","E-25","E-250")]
+lab <-  "Label"
+tim <- "RealTime"
+k.clus <- 2L:8L
+na.f <- 1.1
+
+clust_EGF_1 <- CastCluster(EGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio")
+```
+
+#### With normalized and unsmoothed data
+
+```{r cache=T, message=F}
+clust_EGF_2 <- CastCluster(EGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm")
+```
+
+#### With normalized and smoothed data
+
+```{r cache=T, message=F}
+clust_EGF_3 <- CastCluster(EGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm.smooth")
+```
+
+#### All together
+
+```{r warning=F}
+q1 <- melt(as.data.table(clust_EGF_1$quality))
+q2 <- melt(as.data.table(clust_EGF_2$quality))
+q3 <- melt(as.data.table(clust_EGF_3$quality))
+
+q1$Ratio <- "Raw"
+q2$Ratio <- "Norm"
+q3$Ratio <- "NormSmooth"
+temp <- rbind(q1, q2, q3)
+temp$index <- rep(rownames(clust_EGF_1$quality), 21)
+ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y")
+```
+
+
+### NGF
+
+#### With unormalized and unsmoothed data
+
+```{r cache=T, message=F}
+NGF <- Yanni_norm[Condition %in% c("N-0.25","N-2.5","N-25","N-250")]
+lab <-  "Label"
+tim <- "RealTime"
+k.clus <- 2L:8L
+na.f <- 1.1
+
+clust_NGF_1 <- CastCluster(NGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio")
+```
+
+#### With normalized and unsmoothed data
+
+```{r cache=T, message=F}
+clust_NGF_2 <- CastCluster(NGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm")
+```
+
+#### With normalized and smoothed data
+
+```{r cache=T, message=F}
+clust_NGF_3 <- CastCluster(NGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm.smooth")
+```
+
+```{r}
+
+```
+
+### FGF
+
+#### With unormalized and unsmoothed data
+
+```{r cache=T, message=F}
+FGF <- Yanni_norm[Condition %in% c("F-0.25","F-2.5","F-25","F-250")]
+lab <-  "Label"
+tim <- "RealTime"
+k.clus <- 2L:8L
+na.f <- 1.1
+
+clust_FGF_1 <- CastCluster(FGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio")
+```
+
+#### With normalized and unsmoothed data
+
+```{r cache=T, message=F}
+clust_FGF_2 <- CastCluster(FGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm")
+```
+
+#### With normalized and smoothed data
+
+```{r cache=T, message=F}
+clust_FGF_3 <- CastCluster(FGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm.smooth")
+```
 
 # Separability of snapshots between concentrations of the same GF
 
@@ -46,6 +213,12 @@ Idea: For a given GF, at each time point and for each concentration get the sign
 Idea: For each GF, compare each pair of trajectories that do not belong to the same concentrations. This comparison can be done by cross-correlation/overlap of clipping trajectories, simple correlations... Cross-correlations provides a way to align the signals as best as we can be shifting this is cool to get rid of differences that would come from experimental conditions like we've been waiting 5 more minutes to inject the GF.
 
 Could also check coherence (cross-correlation based on spectral densities).
+
+```{r}
+
+
+```
+
 
 # Information theory approach: entropy of heatmap / signal
 
