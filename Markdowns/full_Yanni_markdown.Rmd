@@ -182,8 +182,16 @@ clust_EGF_2 <- CastCluster(EGF, time.col = tim, condition.col = cond, label.col 
 clust_EGF_3 <- CastCluster(EGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm.smooth")
 ```
 
+Advised number of clusters:
+```{r cache=T}
+raw <- c(apply(clust_EGF_1$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_EGF_1$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+norm <- c(apply(clust_EGF_2$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_EGF_2$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+smooth <- c(apply(clust_EGF_3$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_EGF_3$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+rbind(raw, norm, smooth)
+```
 
-```{r warning=F, echo=F, fig.width=17, fig.height=8}
+
+```{r warning=F, echo=F, fig.width=17, fig.height=8, cache=T}
 q1 <- melt(as.data.table(clust_EGF_1$quality))
 q2 <- melt(as.data.table(clust_EGF_2$quality))
 q3 <- melt(as.data.table(clust_EGF_3$quality))
@@ -196,8 +204,12 @@ temp$index <- rep(rownames(clust_EGF_1$quality), 21)
 ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y") + theme(text = element_text(size = 20)) + xlab("Number Cluster")
 ```
 
+```{r cache=T}
+plot_cluster(clust_EGF_3$table, id.vars.col = 1:9, cluster.col = "k_2", type = "trajectory")
+```
 
-```{r fig.width=21, fig.height=12}
+
+```{r fig.width=21, fig.height=12, cache=T}
 # Cluster composition with Raw data
 library(gridExtra)
 for(i in k.clus){
@@ -224,7 +236,15 @@ clust_NGF_2 <- CastCluster(NGF, time.col = tim, condition.col = cond, label.col 
 clust_NGF_3 <- CastCluster(NGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm.smooth")
 ```
 
-```{r warning=F, echo=F, fig.width=17, fig.height=8}
+Advised number of clusters:
+```{r cache=T}
+raw <- c(apply(clust_NGF_1$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_NGF_1$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+norm <- c(apply(clust_NGF_2$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_NGF_2$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+smooth <- c(apply(clust_NGF_3$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_NGF_3$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+rbind(raw, norm, smooth)
+```
+
+```{r warning=F, echo=F, fig.width=17, fig.height=8, cache=T}
 q1 <- melt(as.data.table(clust_NGF_1$quality))
 q2 <- melt(as.data.table(clust_NGF_2$quality))
 q3 <- melt(as.data.table(clust_NGF_3$quality))
@@ -237,7 +257,11 @@ temp$index <- rep(rownames(clust_NGF_1$quality), 21)
 ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y") + theme(text = element_text(size = 20)) + xlab("Number Cluster")
 ```
 
-```{r fig.width=21, fig.height=12}
+```{r cache=T}
+plot_cluster(clust_NGF_3$table, id.vars.col = 1:9, cluster.col = "k_2", type = "trajectory")
+```
+
+```{r fig.width=21, fig.height=12, cache=T}
 # Cluster composition with Raw data
 library(gridExtra)
 for(i in k.clus){
@@ -264,7 +288,15 @@ clust_FGF_2 <- CastCluster(FGF, time.col = tim, condition.col = cond, label.col 
 clust_FGF_3 <- CastCluster(FGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm.smooth")
 ```
 
-```{r warning=F, echo=F, fig.width=17, fig.height=8}
+Advised number of clusters:
+```{r cache=T}
+raw <- c(apply(clust_FGF_1$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_FGF_1$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+norm <- c(apply(clust_FGF_2$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_FGF_2$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+smooth <- c(apply(clust_FGF_3$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_FGF_3$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+rbind(raw, norm, smooth)
+```
+
+```{r warning=F, echo=F, fig.width=17, fig.height=8, cache=T}
 q1 <- melt(as.data.table(clust_FGF_1$quality))
 q2 <- melt(as.data.table(clust_FGF_2$quality))
 q3 <- melt(as.data.table(clust_FGF_3$quality))
@@ -277,7 +309,11 @@ temp$index <- rep(rownames(clust_FGF_1$quality), 21)
 ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y") + theme(text = element_text(size = 20)) + xlab("Number Cluster")
 ```
 
-```{r fig.width=21, fig.height=12}
+```{r cache=T}
+plot_cluster(clust_FGF_3$table, id.vars.col = 1:9, cluster.col = "k_2", type = "trajectory")
+```
+
+```{r fig.width=21, fig.height=12, cache=T}
 # Cluster composition with Raw data
 library(gridExtra)
 for(i in k.clus){
@@ -340,15 +376,50 @@ for(k in 1:(kmax-1)) {
 
 Idea: For a given GF, at each time point and for each concentration get the signal distribution, check if they overlap well between different concentrations. Overlap can be measured by KS statistics, Bhattacharryya index, Kullback–Leibler...
 
-```{r eval=F}
-conc1 <- Yanni[Condition=="E-0.25"]
-conc2 <- Yanni[Condition=="E-2.5"]
-
-for(t in 0:200){
-  separability.measures(conc1[RealTime==t, Ratio.norm.smooth])
-  separability.measures(conc2[RealTime==t, Ratio.norm.smooth])
+```{r warning=F}
+sep.meas.along.time <- function(data1, data2, time.col, measure.col){
+  timev <- unique(data1[, get(time.col)])
+  if(!(identical(unique(data2[, get(time.col)]), timev))) stop("Time vectors must be identical between the two data")
+  out <- separability.measures(data1[get(time.col)==timev[1], get(measure.col)], data2[get(time.col)==timev[1], get(measure.col)])
+  for(t in timev[2:length(timev)]){
+    out <- rbind(out, separability.measures(data1[RealTime==t, get(measure.col)], data2[RealTime==t, get(measure.col)]))
+  }
+  out <- cbind(timev, out)
+  return(out)
 }
+
+# Get all pairs of conditions
+conditions <- combn(as.character(unique(Yanni[,Condition])), m = 2)
+conditions <- conditions[,c(1:3,12,13,22, 39:41,46,47,52, 61:66)]
+
+# Compute separabilities of conditions at each time point
+sep.meas <- apply(conditions, 2, function(x) sep.meas.along.time(Yanni[Condition==x[1]],  Yanni[Condition==x[2]], "RealTime", "Ratio" ))
+names(sep.meas) <- apply(conditions, 2, function(x) paste(x[1], x[2], sep = ","))
+
+# Go to data table
+for(i in 1:length(sep.meas)){
+  temp <- unlist(strsplit(names(sep.meas)[i], ","))
+  sep.meas[[i]]$Cond1 <- temp[1]
+  sep.meas[[i]]$Cond2 <- temp[2]
+}
+
+library(plyr)
+sep.meas <- as.data.table(rbind.fill(sep.meas))
+sep.meas[, c("Cond1", "Cond2") := list(as.factor(Cond1), as.factor(Cond2))]
 ```
+
+
+```{r fig.width=21, fig.height=12}
+ggplot(sep.meas, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash")
+```
+
+Can sum up these curves with area under curve:
+```{r}
+max.val <- sqrt(2) * 101
+auc <- sep.meas[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
+auc
+```
+
 
 
 # Cross-Correlations/Coherence between concentrations of the same GF
@@ -358,7 +429,6 @@ Idea: For each GF, compare each pair of trajectories that do not belong to the s
 Could also check coherence (cross-correlation based on spectral densities).
 
 ```{r}
-
 
 ```
 
