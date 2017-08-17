@@ -57,9 +57,9 @@ Prior to clustering, normalize data since the computations of distances between 
 
 ```{r}
 # Normalization
-Yanni_norm <- myNorm(in.dt = Yanni, in.meas.col = "Ratio", in.rt.min = 0, in.rt.max = 36, in.by.cols = c("Condition", "Label"), in.type = "fold.change")
+Yanni <- myNorm(in.dt = Yanni, in.meas.col = "Ratio", in.rt.min = 0, in.rt.max = 36, in.by.cols = c("Condition", "Label"), in.type = "fold.change")
 # X trimming
-Yanni_norm <- Yanni_norm[RealTime <= 200]
+Yanni <- Yanni[RealTime <= 200]
 ```
 
 
@@ -67,34 +67,42 @@ Yanni_norm <- Yanni_norm[RealTime <= 200]
 
 Erase small variations in the signal that are not relevant for distance computation, smooth out high frequency variations (noise).
 ```{r fig.height=12, fig.width=21, message=FALSE}
-Yanni_norm[, Ratio.norm.smooth := rollex(Ratio.norm, k = 5), by = c("Condition", "Label")]
-Yanni_norm
+Yanni[, Ratio.norm.smooth := rollex(Ratio.norm, k = 5), by = c("Condition", "Label")]
+Yanni
 
 # Plot first trajetory
 par(mfrow=c(3,1))
-plot(Yanni_norm[Condition=="E-0.25" & Label=="12_0002", Ratio], type = "b", ylab = "value", cex.main=3, cex.axis=2.5, main = "Raw")
-plot(Yanni_norm[Condition=="E-0.25" & Label=="12_0002", Ratio.norm], type = "b", ylab = "value", cex.main=3, cex.axis=2.5, main = "Normalized")
-plot(Yanni_norm[Condition=="E-0.25" & Label=="12_0002", Ratio.norm.smooth], type = "b", ylab = "value", cex.main=3, cex.axis=2.5, main = "Normalized and smoothed")
+plot(Yanni[Condition=="E-0.25" & Label=="12_0002", Ratio], type = "b", ylab = "value", cex.main=3, cex.axis=2.5, main = "Raw")
+plot(Yanni[Condition=="E-0.25" & Label=="12_0002", Ratio.norm], type = "b", ylab = "value", cex.main=3, cex.axis=2.5, main = "Normalized")
+plot(Yanni[Condition=="E-0.25" & Label=="12_0002", Ratio.norm.smooth], type = "b", ylab = "value", cex.main=3, cex.axis=2.5, main = "Normalized and smoothed")
 ```
 
 
-## Clustering
+## Clustering indices
 
-Will use a method based on DTW, much more tailored to TS than classical Euclidean distance.
+Will use a method based on DTW, much more tailored to TS than classical Euclidean distance. In addition we use partionning around medoids instead of Kmeans, these are basically the same methods except that medoids are much less sensitive to outliers. Instead of picking the mean of a cluster as a center, medoids pick the data point that is the closest to the middle of the cluster.
+
+Though the method is dependant on the initialization, changing the seed doesn't affect the clustering that much.
 
 ```{r}
-CastCluster <- function(data, time.col, label.col, measure.col, k.clust, na.fill, plot = T, ...){
-  # Cast to wide and cluster
+CastCluster <- function(data, time.col, condition.col, label.col, measure.col, k.clust, na.fill, plot = T, return.quality = T, ...){
+  # Cast to wide, cluster and get quality indices
   require(dtwclust)
-  temp <- copy(data)
-  temp <- dcast(temp, get(label.col) ~ get(time.col), value.var = measure.col)
-  temp <- as.matrix(temp[, -1]) # remove first columns with labels
-  temp[which(is.na(temp))] <- na.fill
+  temp <- myCast(data, time.col, condition.col, label.col, measure.col, na.fill)
   
-  clust <- tsclust(temp, type = "partitional", k = k.clust, distance = "dtw_basic", centroid = "pam", seed = 42, ...)
+  # Make clustering, and get quality indexes
+  clust <- tsclust(temp$casted.matrix, type = "partitional", k = k.clust, distance = "dtw_basic", centroid = "pam", seed = 42, ...)
   names(clust) <- paste0("k_", k.clust)
   quality <- sapply(clust, cvi, type = "internal")
   
+  # Add a column with the clusters to the casted table
+  cluster.table <- temp$casted
+  for(k in 1:length(clust)){
+    cluster.table <- cbind(clust[[k]]@cluster, cluster.table)
+    colnames(cluster.table)[1] <- names(clust)[k]
+  }
+  
+  # Plot
   if(plot){
     require(ggplot2)
     mquality <- melt(quality)
@@ -102,39 +110,80 @@ CastCluster <- function(data, time.col, label.col, measure.col, k.clust, na.fill
     plot(ggplot(mquality, aes(x=Nb.Clust, y = value)) + geom_col(aes(group = Nb.Clust, fill = Nb.Clust)) + facet_grid(Stat ~ ., scales = "free_y"))
   }
   
-  return(list(cluster = clust, quality = quality))
+  # Output
+  if(return.quality) return(list(cluster = clust, table = cluster.table, quality = quality))
+  else return(list(out = clust, table = cluster.table))
+}
+
+
+myCast <- function(data, time.col, condition.col, label.col, measure.col, na.fill){
+  # Only cast to wide matrix
+  temp <- copy(data)
+  # dcast can change the order of the rows depending on the orde rin which the keyed columns are passed, keep the casted table in addition to the matrix to make the link afterwards
+  temp <- dcast(temp, get(condition.col) + get(label.col) ~ get(time.col), value.var = measure.col)
+  temp2 <- as.matrix(temp[, c(-1, -2)]) # remove 2 first columns with labels
+  temp2[which(is.na(temp2))] <- na.fill
+  return(list(casted = temp, casted.matrix = temp2))
+}
+
+
+plot_cluster <- function(data, id.vars.col, cluster.col, type){
+  # Plot clusters directly from output$table of CastCluster
+  # id.vars.col: given in indices (include ALL clustering columns)
+  # cluster.col: name of the column with clustering to plot
+  library(ggplot2)
+  ids <- colnames(data)[id.vars.col]
+  melted <- melt(data, id.vars = ids)
+  if(type=="trajectory"){
+    ggplot(melted, aes(x = as.numeric(variable), y = value)) + geom_line(aes(group = label.col)) +
+    facet_wrap(as.formula(paste("~",cluster.col))) + stat_summary(fun.y=mean, geom="line", colour = "blue", size = 1.5) + xlab("Time")
+  } else if(type=="composition"){
+    melted[, c(cluster.col):=as.factor(get(cluster.col))]
+    ggplot(melted, aes_string(cluster.col)) + geom_bar(aes(fill=condition.col, y = (..count..)/sum(..count..)))
+  }
 }
 ```
 
-### EGF
+```{r}
+EGF <- Yanni[Condition %in% c("E-0.25", "E-2.5", "E-25", "E-250")]
+NGF <- Yanni[Condition %in% c("N-0.25", "N-2.5", "N-25", "N-250")]
+FGF <- Yanni[Condition %in% c("F-0.25", "F-2.5", "F-25", "F-250")]
 
-#### With unormalized and unsmoothed data
-
-```{r cache=T, message=F}
-EGF <- Yanni_norm[Condition %in% c("E-0.25","E-2.5","E-25","E-250")]
+cond <- "Condition"
 lab <-  "Label"
 tim <- "RealTime"
 k.clus <- 2L:8L
-na.f <- 1.1
-
-clust_EGF_1 <- CastCluster(EGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio")
+na.f.raw <- 1200
+na.f.nor <- 1.1
 ```
 
-#### With normalized and unsmoothed data
+Clustering quality is evaluated with the following indices (see ?dtwclust::cvi ; https://pdfs.semanticscholar.org/a522/fb4646ad19fe88893b90e6fbc1faa1470976.pdf):
+
+* CH: Calinski-Harabasz index, to MAXIMIZE
+* COP: COP index, to MINIMIZE
+* D: Dunn index, to MAXIMIZE
+* DB: Davis-Bouldin, to MINIMIZE
+* DBstar: modified Davis-Bouldin, to MINIMIZE
+* SF: Score Function, to MAXIMIZE
+* Sil: Silhouette index, to MAXIMIZE
+
+
+Results with these indices is very often unclear and contradictory, inspecting the cluster composition can help. In a setting where one concentration gives rise to an unique response, we would expect a good clustering to contain clusters with at least 25% of the observations (since there is 4 concentrations) that are enriched/depleted in at least one concentration.
+
+
+### EGF
 
 ```{r cache=T, message=F}
-clust_EGF_2 <- CastCluster(EGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm")
+# With unormalized and unsmoothed data
+clust_EGF_1 <- CastCluster(EGF, time.col = tim, condition.col = cond,  label.col = lab, k.clust = k.clus, na.fill = na.f.raw, plot = F, measure.col = "Ratio")
+# With normalized and unsmoothed data
+clust_EGF_2 <- CastCluster(EGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm")
+# With normalized and smoothed data
+clust_EGF_3 <- CastCluster(EGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm.smooth")
 ```
 
-#### With normalized and smoothed data
 
-```{r cache=T, message=F}
-clust_EGF_3 <- CastCluster(EGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm.smooth")
-```
-
-#### All together
-
-```{r warning=F}
+```{r warning=F, echo=F, fig.width=17, fig.height=8}
 q1 <- melt(as.data.table(clust_EGF_1$quality))
 q2 <- melt(as.data.table(clust_EGF_2$quality))
 q3 <- melt(as.data.table(clust_EGF_3$quality))
@@ -144,69 +193,163 @@ q2$Ratio <- "Norm"
 q3$Ratio <- "NormSmooth"
 temp <- rbind(q1, q2, q3)
 temp$index <- rep(rownames(clust_EGF_1$quality), 21)
-ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y")
+ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y") + theme(text = element_text(size = 20)) + xlab("Number Cluster")
 ```
 
+
+```{r fig.width=21, fig.height=12}
+# Cluster composition with Raw data
+library(gridExtra)
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_EGF_1$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
+
+# With normalized smoothed data
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_EGF_3$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
+```
+
+Each cluster systematically contains the 4 concentrations, very low separabilty --> 1 type of response whatever the concentration.
 
 ### NGF
 
-#### With unormalized and unsmoothed data
-
 ```{r cache=T, message=F}
-NGF <- Yanni_norm[Condition %in% c("N-0.25","N-2.5","N-25","N-250")]
-lab <-  "Label"
-tim <- "RealTime"
-k.clus <- 2L:8L
-na.f <- 1.1
-
-clust_NGF_1 <- CastCluster(NGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio")
+clust_NGF_1 <- CastCluster(NGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.raw, plot = F, measure.col = "Ratio")
+clust_NGF_2 <- CastCluster(NGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm")
+clust_NGF_3 <- CastCluster(NGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm.smooth")
 ```
 
-#### With normalized and unsmoothed data
+```{r warning=F, echo=F, fig.width=17, fig.height=8}
+q1 <- melt(as.data.table(clust_NGF_1$quality))
+q2 <- melt(as.data.table(clust_NGF_2$quality))
+q3 <- melt(as.data.table(clust_NGF_3$quality))
 
-```{r cache=T, message=F}
-clust_NGF_2 <- CastCluster(NGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm")
+q1$Ratio <- "Raw"
+q2$Ratio <- "Norm"
+q3$Ratio <- "NormSmooth"
+temp <- rbind(q1, q2, q3)
+temp$index <- rep(rownames(clust_NGF_1$quality), 21)
+ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y") + theme(text = element_text(size = 20)) + xlab("Number Cluster")
 ```
 
-#### With normalized and smoothed data
+```{r fig.width=21, fig.height=12}
+# Cluster composition with Raw data
+library(gridExtra)
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_NGF_1$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
 
-```{r cache=T, message=F}
-clust_NGF_3 <- CastCluster(NGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm.smooth")
+# With normalized smoothed data
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_NGF_3$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
 ```
 
-```{r}
-
-```
+Each cluster systematically contains the 4 concentrations, very low separabilty --> 1 type of response whatever the concentration.
 
 ### FGF
 
-#### With unormalized and unsmoothed data
-
 ```{r cache=T, message=F}
-FGF <- Yanni_norm[Condition %in% c("F-0.25","F-2.5","F-25","F-250")]
-lab <-  "Label"
-tim <- "RealTime"
-k.clus <- 2L:8L
-na.f <- 1.1
-
-clust_FGF_1 <- CastCluster(FGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio")
+clust_FGF_1 <- CastCluster(FGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.raw, plot = F, measure.col = "Ratio")
+clust_FGF_2 <- CastCluster(FGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm")
+clust_FGF_3 <- CastCluster(FGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm.smooth")
 ```
 
-#### With normalized and unsmoothed data
+```{r warning=F, echo=F, fig.width=17, fig.height=8}
+q1 <- melt(as.data.table(clust_FGF_1$quality))
+q2 <- melt(as.data.table(clust_FGF_2$quality))
+q3 <- melt(as.data.table(clust_FGF_3$quality))
 
-```{r cache=T, message=F}
-clust_FGF_2 <- CastCluster(FGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm")
+q1$Ratio <- "Raw"
+q2$Ratio <- "Norm"
+q3$Ratio <- "NormSmooth"
+temp <- rbind(q1, q2, q3)
+temp$index <- rep(rownames(clust_FGF_1$quality), 21)
+ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y") + theme(text = element_text(size = 20)) + xlab("Number Cluster")
 ```
 
-#### With normalized and smoothed data
+```{r fig.width=21, fig.height=12}
+# Cluster composition with Raw data
+library(gridExtra)
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_FGF_1$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
 
-```{r cache=T, message=F}
-clust_FGF_3 <- CastCluster(FGF, time.col = tim, label.col = lab, k.clust = k.clus, na.fill = na.f, measure.col = "Ratio.norm.smooth")
+# With normalized smoothed data
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_FGF_3$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
 ```
+
+Separability seems better than for EGF and NGF, notably concentration 0.25 and 250 tend to be taken apart.
+
+## Choose number of clusters with the gap statistics
+
+The gap statistics is an heuristic way of estimating the number of clusters. It compares the variance explained by our clustering to the expected explained variance if there was no cluster but just noise in that specific space region. It is very computational costly but has the major advantage to also indicate whether clustering is even relevant in the first place (i.e. k=1 should be kept). See: https://datasciencelab.wordpress.com/2013/12/27/finding-the-k-in-k-means-clustering/
+
+```{r cache = TRUE, eval=F}
+modtsclust <- function(data, k, type, centroid){
+  # Interface function compatible with clusGap, returns only the result of the clustering
+  require(dtwclust)
+  temp <- tsclust(data, k = k, type = type, centroid = centroid)
+  return(list(cluster = temp@cluster))
+}
+kmax = 6L
+
+require(cluster)
+temp <- copy(EGF)
+temp <- dcast(temp, Label ~ RealTime, value.var = "Ratio.norm.smooth")
+temp <- as.matrix(temp[, -1]) # remove first columns with labels
+temp[which(is.na(temp))] <- 1.1
+cgap_EGF_smooth <- clusGap(temp, FUN=modtsclust, K.max=kmax, B=50, centroid = "pam", type = "partitional")
+
+temp <- copy(NGF)
+temp <- dcast(temp, Label ~ RealTime, value.var = "Ratio")
+temp <- as.matrix(temp[, -1]) # remove first columns with labels
+temp[which(is.na(temp))] <- 1.1
+cgap_NGF <- clusGap(temp, FUN=modtsclust, K.max=kmax, B=100, centroid = "pam", type = "partitional")
+
+temp <- copy(FGF)
+temp <- dcast(temp, Label ~ RealTime, value.var = "Ratio.norm.smooth")
+temp <- as.matrix(temp[, -1]) # remove first columns with labels
+temp[which(is.na(temp))] <- 1.1
+cgap_FGF_smooth <- clusGap(temp, FUN=modtsclust, K.max=kmax, B=100, centroid = "pam", type = "partitional")
+
+
+for(k in 1:(kmax-1)) {
+    if(cgap_FGF_smooth$Tab[k,3]>cgap_FGF_smooth$Tab[(k+1),3]-cgap_FGF_smooth$Tab[(k+1),4]) {print(k)}; 
+    break;
+}
+```
+
 
 # Separability of snapshots between concentrations of the same GF
 
 Idea: For a given GF, at each time point and for each concentration get the signal distribution, check if they overlap well between different concentrations. Overlap can be measured by KS statistics, Bhattacharryya index, Kullback–Leibler...
+
+```{r eval=F}
+conc1 <- Yanni[Condition=="E-0.25"]
+conc2 <- Yanni[Condition=="E-2.5"]
+
+for(t in 0:200){
+  separability.measures(conc1[RealTime==t, Ratio.norm.smooth])
+  separability.measures(conc2[RealTime==t, Ratio.norm.smooth])
+}
+```
+
 
 # Cross-Correlations/Coherence between concentrations of the same GF
 
