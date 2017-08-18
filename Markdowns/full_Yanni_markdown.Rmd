@@ -376,6 +376,10 @@ for(k in 1:(kmax-1)) {
 
 Idea: For a given GF, at each time point and for each concentration get the signal distribution, check if they overlap well between different concentrations. Overlap can be measured by KS statistics, Bhattacharryya index, Kullback–Leibler...
 
+However this implicitly assumes that there's no subpopulation within a given condition (GF + concentration).
+
+## Raw values
+
 ```{r warning=F}
 sep.meas.along.time <- function(data1, data2, time.col, measure.col){
   timev <- unique(data1[, get(time.col)])
@@ -388,38 +392,225 @@ sep.meas.along.time <- function(data1, data2, time.col, measure.col){
   return(out)
 }
 
+library(plyr)
+
 # Get all pairs of conditions
 conditions <- combn(as.character(unique(Yanni[,Condition])), m = 2)
 conditions <- conditions[,c(1:3,12,13,22, 39:41,46,47,52, 61:66)]
 
 # Compute separabilities of conditions at each time point
-sep.meas <- apply(conditions, 2, function(x) sep.meas.along.time(Yanni[Condition==x[1]],  Yanni[Condition==x[2]], "RealTime", "Ratio" ))
-names(sep.meas) <- apply(conditions, 2, function(x) paste(x[1], x[2], sep = ","))
+sep.meas.raw <- apply(conditions, 2, function(x) sep.meas.along.time(Yanni[Condition==x[1]],  Yanni[Condition==x[2]], "RealTime", "Ratio" ))
+names(sep.meas.raw) <- apply(conditions, 2, function(x) paste(x[1], x[2], sep = ","))
 
 # Go to data table
-for(i in 1:length(sep.meas)){
-  temp <- unlist(strsplit(names(sep.meas)[i], ","))
-  sep.meas[[i]]$Cond1 <- temp[1]
-  sep.meas[[i]]$Cond2 <- temp[2]
+for(i in 1:length(sep.meas.raw)){
+  temp <- unlist(strsplit(names(sep.meas.raw)[i], ","))
+  sep.meas.raw[[i]]$Cond1 <- temp[1]
+  sep.meas.raw[[i]]$Cond2 <- temp[2]
 }
 
-library(plyr)
-sep.meas <- as.data.table(rbind.fill(sep.meas))
-sep.meas[, c("Cond1", "Cond2") := list(as.factor(Cond1), as.factor(Cond2))]
+sep.meas.raw <- as.data.table(rbind.fill(sep.meas.raw))
+sep.meas.raw[, c("Cond1", "Cond2") := list(as.factor(Cond1), as.factor(Cond2))]
 ```
 
 
 ```{r fig.width=21, fig.height=12}
-ggplot(sep.meas, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash")
+ggplot(sep.meas.raw, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash")
 ```
 
 Can sum up these curves with area under curve:
 ```{r}
 max.val <- sqrt(2) * 101
-auc <- sep.meas[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
+auc <- sep.meas.raw[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
 auc
 ```
 
+The indicator seems to show the differences in behaviour really well: NGF curves are completely flat, indicating that there is few deviations between 2 concentrations. As for NGF and EGF 2 about clusters appear between bahaviours at low versus behaviours at high concentrations.
+
+The peaks observed aorund 40min, can either come from differences in excitation level or from a shift between series, this needs to be checked. If the prior was true, should perform a multiple alignment within each concentration prior to compute the distances.
+
+## Normalized valued
+
+```{r warning=F}
+sep.meas.norm <- apply(conditions, 2, function(x) sep.meas.along.time(Yanni[Condition==x[1]],  Yanni[Condition==x[2]], "RealTime", "Ratio.norm" ))
+names(sep.meas.norm) <- apply(conditions, 2, function(x) paste(x[1], x[2], sep = ","))
+
+# Go to data table
+for(i in 1:length(sep.meas.norm)){
+  temp <- unlist(strsplit(names(sep.meas.norm)[i], ","))
+  sep.meas.norm[[i]]$Cond1 <- temp[1]
+  sep.meas.norm[[i]]$Cond2 <- temp[2]
+}
+
+sep.meas.norm <- as.data.table(rbind.fill(sep.meas.norm))
+sep.meas.norm[, c("Cond1", "Cond2") := list(as.factor(Cond1), as.factor(Cond2))]
+```
+
+
+```{r fig.width=21, fig.height=12}
+ggplot(sep.meas.norm, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash")
+```
+
+```{r}
+max.val <- sqrt(2) * 101
+auc <- sep.meas.norm[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
+auc
+```
+
+Seems that the normalization makes no good to the metric by amplifying small differences (due to shift)?
+
+## Normalized and smoothed
+
+```{r}
+sep.meas.smooth <- apply(conditions, 2, function(x) sep.meas.along.time(Yanni[Condition==x[1]],  Yanni[Condition==x[2]], "RealTime", "Ratio.norm.smooth" ))
+names(sep.meas.smooth) <- apply(conditions, 2, function(x) paste(x[1], x[2], sep = ","))
+
+# Go to data table
+for(i in 1:length(sep.meas.smooth)){
+  temp <- unlist(strsplit(names(sep.meas.smooth)[i], ","))
+  sep.meas.smooth[[i]]$Cond1 <- temp[1]
+  sep.meas.smooth[[i]]$Cond2 <- temp[2]
+}
+
+sep.meas.smooth <- as.data.table(rbind.fill(sep.meas.smooth))
+sep.meas.smooth[, c("Cond1", "Cond2") := list(as.factor(Cond1), as.factor(Cond2))]
+```
+
+
+```{r fig.width=21, fig.height=12}
+ggplot(sep.meas.smooth, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash")
+```
+
+```{r}
+max.val <- sqrt(2) * 101
+auc <- sep.meas.smooth[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
+auc
+```
+
+Same as for normalization, probably better to stick to raw data if possible.
+
+## To go further: bootstraps and permutation tests
+
+### Permutation tests
+
+Tells us if the observed area under the curve is really related to a difference between the two treatments or if it is spurious. If there is n trajectories recorded in condition 1 and m in condition 2, the permutation test is performed like so:
+
+* Randomly assign n trajectories to group 1
+* Assign the ret to group 2
+* Compute the auc
+* Repeat
+
+We then look if the observed auc is likely in this empirical distribution.
+
+```{r}
+one.permutation.auc <- function(x, y, metric){
+  n <- nrow(x)
+  m <- nrow(y)
+  temp <- rbind(x, y)
+  samp.traj <- sample(1:nrow(temp), size = n, replace = FALSE)
+  x.resamp <- temp[samp.traj, ]
+  y.resamp <- temp[setdiff(1:nrow(temp), samp.traj), ]
+
+  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
+  return(sum(unlist(seps[metric, ])))
+}
+
+permutation.auc <- function(x, y, n, metric = "jm"){
+  # x,y: two matrices representing time series, row: trajectory; col: time
+  # n: number of permutations
+  # metric: one of "jm", "bh", "div", "tdiv", "ks"
+  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
+  return(replicate(n, one.permutation.auc(x,y,metric)))
+}
+```
+
+```{r warning=F}
+a <- myCast(FGF[Condition=="F-0.25"], "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
+b <- myCast(FGF[Condition=="F-250"],  "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
+temp <- permutation.auc(a, b, 500)
+hist(temp/max.val, freq=F)
+```
+
+### Bootstraps
+
+#### Bootstraps per column (i.e. resample time points)
+
+In order to know whether these area under curves are robust estimates, could perform bootstraps the way it is performed in phylogenetics:
+
+* Initialize an empty matrix with dimensions of the one representing the time series along time.
+* From the initial matrix representing the trajectories, select a column at random (i.e. one time point)
+* Add this column to the empty matrix
+
+Because we deal here with comparison of 2 populations we can modify this to:
+
+* Initialize two empty matrices, one for each population
+* Pick a random column index (or a time)
+* Extend both matrices with the column of its corresponding population.
+
+This implies that matrices are of same length and defined at the same times.
+
+```{r}
+one.bootstrap.auc.percol <- function(x, y, metric){
+  samp.col <- sample(1:ncol(x), size = ncol(x), replace = TRUE)
+  x.resamp <- x[, samp.col]
+  y.resamp <- y[, samp.col]
+  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
+  return(sum(unlist(seps[metric, ])))
+}
+
+bootstrap.auc.percol <- function(x, y, B, metric = "jm"){
+  # x,y: two matrices representing time series, row: trajectory; col: time
+  # B: number of boostraps
+  # metric: one of "jm", "bh", "div", "tdiv", "ks"
+  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
+  return(replicate(B, one.bootstrap.auc.percol(x,y,metric)))
+}
+```
+
+
+```{r warning=F}
+a <- myCast(FGF[Condition=="F-0.25"], "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
+b <- myCast(FGF[Condition=="F-250"],  "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
+temp <- bootstrap.auc.percol(a, b, 500)
+hist(temp/max.val, freq=F)
+
+# Standard Error of the estimator
+summary(temp/max.val)
+sd(temp/max.val)
+```
+
+We see that the average of the distribution corresponds to the observed value.
+
+
+#### Bootstraps per row (i.e. resample trajectories)
+
+A lack of robustness here could potentially show the presence of subpopulations, that are missed when simply sum up to AUC.
+
+```{r}
+one.bootstrap.auc.perrow <- function(x, y, metric){
+  samp.rowx <- sample(1:nrow(x), size = nrow(x), replace = TRUE)
+  samp.rowy <- sample(1:nrow(y), size = nrow(y), replace = TRUE)
+  x.resamp <- x[samp.rowx, ]
+  y.resamp <- y[samp.rowy, ]
+  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
+  return(sum(unlist(seps[metric, ])))
+}
+
+bootstrap.auc.perrow <- function(x, y, B, metric = "jm"){
+  # x,y: two matrices representing time series, row: trajectory; col: time
+  # B: number of boostraps
+  # metric: one of "jm", "bh", "div", "tdiv", "ks"
+  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
+  return(replicate(B, one.bootstrap.auc.percol(x,y,metric)))
+}
+```
+
+```{r warning=F}
+a <- myCast(EGF[Condition=="E-0.25"], "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
+b <- myCast(EGF[Condition=="E-250"],  "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
+temp <- bootstrap.auc.perrow(a, b, 500)
+hist(temp/max.val)
+```
 
 
 # Cross-Correlations/Coherence between concentrations of the same GF
@@ -427,10 +618,6 @@ auc
 Idea: For each GF, compare each pair of trajectories that do not belong to the same concentrations. This comparison can be done by cross-correlation/overlap of clipping trajectories, simple correlations... Cross-correlations provides a way to align the signals as best as we can be shifting this is cool to get rid of differences that would come from experimental conditions like we've been waiting 5 more minutes to inject the GF.
 
 Could also check coherence (cross-correlation based on spectral densities).
-
-```{r}
-
-```
 
 
 # Information theory approach: entropy of heatmap / signal
