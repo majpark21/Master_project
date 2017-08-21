@@ -496,7 +496,7 @@ Same as for normalization, probably better to stick to raw data if possible.
 Tells us if the observed area under the curve is really related to a difference between the two treatments or if it is spurious. If there is n trajectories recorded in condition 1 and m in condition 2, the permutation test is performed like so:
 
 * Randomly assign n trajectories to group 1
-* Assign the ret to group 2
+* Assign the rest to group 2
 * Compute the auc
 * Repeat
 
@@ -524,12 +524,22 @@ permutation.auc <- function(x, y, n, metric = "jm"){
 }
 ```
 
-```{r warning=F}
-a <- myCast(FGF[Condition=="F-0.25"], "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
-b <- myCast(FGF[Condition=="F-250"],  "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
-temp <- permutation.auc(a, b, 500)
-hist(temp/max.val, freq=F)
+```{r warning=F, cache=TRUE, fig.width=21, fig.height=30}
+wrap_perm <- function(x, y, meas, n){
+  a <- myCast(x, "RealTime", "Condition", "Label", meas, 1100)$casted.matrix
+  b <- myCast(y, "RealTime", "Condition", "Label", meas, 1100)$casted.matrix
+  return(permutation.auc(a, b, n))
+}
+
+temp <- apply(conditions, 2, function(x) wrap_perm(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", 500))
+temp <- temp/max.val
+colnames(temp) <- apply(conditions, 2, paste, collapse=" ; ")
+par(mfrow=c(6,3))
+for(j in 1:ncol(temp)){
+  hist(temp[,j], main = colnames(temp)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+}
 ```
+
 
 ### Bootstraps
 
