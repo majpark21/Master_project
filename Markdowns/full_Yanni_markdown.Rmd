@@ -139,7 +139,7 @@ plot_cluster <- function(data, id.vars.col, cluster.col, type){
     facet_wrap(as.formula(paste("~",cluster.col))) + stat_summary(fun.y=mean, geom="line", colour = "blue", size = 1.5) + xlab("Time")
   } else if(type=="composition"){
     melted[, c(cluster.col):=as.factor(get(cluster.col))]
-    ggplot(melted, aes_string(cluster.col)) + geom_bar(aes(fill=condition.col, y = (..count..)/sum(..count..)))
+    ggplot(melted, aes_string(cluster.col)) + geom_bar(aes(fill=condition.col))
   }
 }
 ```
@@ -181,6 +181,7 @@ clust_EGF_2 <- CastCluster(EGF, time.col = tim, condition.col = cond, label.col 
 # With normalized and smoothed data
 clust_EGF_3 <- CastCluster(EGF, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm.smooth")
 ```
+
 
 Advised number of clusters:
 ```{r cache=T}
@@ -336,6 +337,8 @@ Separability seems better than for EGF and NGF, notably concentration 0.25 and 2
 
 The gap statistics is an heuristic way of estimating the number of clusters. It compares the variance explained by our clustering to the expected explained variance if there was no cluster but just noise in that specific space region. It is very computational costly but has the major advantage to also indicate whether clustering is even relevant in the first place (i.e. k=1 should be kept). See: https://datasciencelab.wordpress.com/2013/12/27/finding-the-k-in-k-means-clustering/
 
+Prototype script:
+
 ```{r cache = TRUE, eval=F}
 modtsclust <- function(data, k, type, centroid){
   # Interface function compatible with clusGap, returns only the result of the clustering
@@ -371,12 +374,219 @@ for(k in 1:(kmax-1)) {
 }
 ```
 
+```{r}
+# Load results
+library(cluster)
+temp <- "C:/Users/pixel/Desktop/Lectures/Semester_3/Master_thesis/gap_stat_output/"
+temp <- paste0(temp, dir(temp))
+sapply(temp, load, .GlobalEnv)
+```
+
+
+## Rerun clustering with shorter time series (centered on the peak)
+
+```{r}
+EGF_short <- EGF[RealTime >= 25 & RealTime <= 100]
+FGF_short <- FGF[RealTime >= 25 & RealTime <= 100]
+NGF_short <- NGF[RealTime >= 25 & RealTime <= 100]
+```
+
+### EGF
+
+```{r cache=T, message=F, fig.width=21, fig.height=15, echo=F}
+# With unormalized and unsmoothed data
+clust_EGF_1 <- CastCluster(EGF_short, time.col = tim, condition.col = cond,  label.col = lab, k.clust = k.clus, na.fill = na.f.raw, plot = F, measure.col = "Ratio")
+# With normalized and unsmoothed data
+clust_EGF_2 <- CastCluster(EGF_short, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm")
+# With normalized and smoothed data
+clust_EGF_3 <- CastCluster(EGF_short, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm.smooth")
+
+raw <- c(apply(clust_EGF_1$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_EGF_1$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+norm <- c(apply(clust_EGF_2$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_EGF_2$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+smooth <- c(apply(clust_EGF_3$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_EGF_3$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+rbind(raw, norm, smooth)
+
+q1 <- melt(as.data.table(clust_EGF_1$quality))
+q2 <- melt(as.data.table(clust_EGF_2$quality))
+q3 <- melt(as.data.table(clust_EGF_3$quality))
+
+q1$Ratio <- "Raw"
+q2$Ratio <- "Norm"
+q3$Ratio <- "NormSmooth"
+temp <- rbind(q1, q2, q3)
+temp$index <- rep(rownames(clust_EGF_1$quality), 21)
+ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y") + theme(text = element_text(size = 20)) + xlab("Number Cluster")
+
+plot_cluster(clust_EGF_3$table, id.vars.col = 1:9, cluster.col = "k_2", type = "trajectory")
+
+# Cluster composition with Raw data
+library(gridExtra)
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_EGF_1$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
+
+# With normalized smoothed data
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_EGF_3$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
+```
+
+Does a much better job at separating the concentrations. Advantages of normalized data become clear.
+
+### NGF
+
+```{r cache=T, message=F, fig.width=21, fig.height=15, echo=F}
+# With unormalized and unsmoothed data
+clust_NGF_1 <- CastCluster(NGF_short, time.col = tim, condition.col = cond,  label.col = lab, k.clust = k.clus, na.fill = na.f.raw, plot = F, measure.col = "Ratio")
+# With normalized and unsmoothed data
+clust_NGF_2 <- CastCluster(NGF_short, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm")
+# With normalized and smoothed data
+clust_NGF_3 <- CastCluster(NGF_short, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm.smooth")
+
+raw <- c(apply(clust_NGF_1$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_NGF_1$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+norm <- c(apply(clust_NGF_2$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_NGF_2$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+smooth <- c(apply(clust_NGF_3$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_NGF_3$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+rbind(raw, norm, smooth)
+
+q1 <- melt(as.data.table(clust_NGF_1$quality))
+q2 <- melt(as.data.table(clust_NGF_2$quality))
+q3 <- melt(as.data.table(clust_NGF_3$quality))
+
+q1$Ratio <- "Raw"
+q2$Ratio <- "Norm"
+q3$Ratio <- "NormSmooth"
+temp <- rbind(q1, q2, q3)
+temp$index <- rep(rownames(clust_NGF_1$quality), 21)
+ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y") + theme(text = element_text(size = 20)) + xlab("Number Cluster")
+
+plot_cluster(clust_NGF_3$table, id.vars.col = 1:9, cluster.col = "k_2", type = "trajectory")
+
+# Cluster composition with Raw data
+library(gridExtra)
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_NGF_1$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
+
+# With normalized smoothed data
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_NGF_3$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
+```
+
+Still impossible to separate the concentrations properly.
+
+### FGF
+
+```{r cache=T, message=F, fig.width=21, fig.height=15, echo=F}
+# With unormalized and unsmoothed data
+clust_FGF_1 <- CastCluster(FGF_short, time.col = tim, condition.col = cond,  label.col = lab, k.clust = k.clus, na.fill = na.f.raw, plot = F, measure.col = "Ratio")
+# With normalized and unsmoothed data
+clust_FGF_2 <- CastCluster(FGF_short, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm")
+# With normalized and smoothed data
+clust_FGF_3 <- CastCluster(FGF_short, time.col = tim, condition.col = cond, label.col = lab, k.clust = k.clus, na.fill = na.f.nor, plot = F, measure.col = "Ratio.norm.smooth")
+
+raw <- c(apply(clust_FGF_1$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_FGF_1$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+norm <- c(apply(clust_FGF_2$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_FGF_2$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+smooth <- c(apply(clust_FGF_3$quality[c("CH","D","SF","Sil"),], 1, which.max) + 1, apply(clust_FGF_3$quality[c("COP","DB","DBstar"),], 1, which.min) + 1)
+rbind(raw, norm, smooth)
+
+q1 <- melt(as.data.table(clust_FGF_1$quality))
+q2 <- melt(as.data.table(clust_FGF_2$quality))
+q3 <- melt(as.data.table(clust_FGF_3$quality))
+
+q1$Ratio <- "Raw"
+q2$Ratio <- "Norm"
+q3$Ratio <- "NormSmooth"
+temp <- rbind(q1, q2, q3)
+temp$index <- rep(rownames(clust_FGF_1$quality), 21)
+ggplot(temp, aes(x=variable, y = value)) + geom_col(aes(fill = as.factor(Ratio)), position = "dodge") + facet_grid(index ~ ., scales = "free_y") + theme(text = element_text(size = 20)) + xlab("Number Cluster")
+
+plot_cluster(clust_FGF_3$table, id.vars.col = 1:9, cluster.col = "k_2", type = "trajectory")
+
+# Cluster composition with Raw data
+library(gridExtra)
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_FGF_1$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
+
+# With normalized smoothed data
+for(i in k.clus){
+  name <- paste0("k_",i)
+  base::assign(paste0("q",i), plot_cluster(clust_FGF_3$table, id.vars.col = 1:9, cluster.col = name, type="composition"))
+}
+grid.arrange(q2,q3,q4,q5,q6,q7,q8, ncol =4, nrow=2)
+```
+
+Very clear separation is performed.
+
+## Visualization in PCA space
+
+```{r cache=TRUE}
+cast_EGF_short <- myCast(EGF_short, tim, cond, lab, "Ratio.norm.smooth", na.fill = 1.1)
+# Replace the big outlier that is driving the 2nd component
+cast_EGF_short$casted.matrix[which.max(cast_EGF_short$casted.matrix)] <- 1.1
+pca_EGF_short <- prcomp(cast_EGF_short$casted.matrix, center = T)
+
+
+library(ggbiplot)
+g <- ggbiplot(pca_EGF_short, obs.scale = 1, var.scale = 1, 
+              groups = unlist(cast_EGF_short$casted[,1]), ellipse = TRUE, 
+              circle = TRUE)
+g <- g + scale_color_discrete(name = '')
+g <- g + theme(legend.direction = 'horizontal', 
+               legend.position = 'top')
+print(g)
+```
+
+```{r cache=TRUE}
+cast_NGF_short <- myCast(NGF_short, tim, cond, lab, "Ratio.norm.smooth", na.fill = 1.1)
+pca_NGF_short <- prcomp(cast_NGF_short$casted.matrix, center = T)
+
+
+library(ggbiplot)
+g <- ggbiplot(pca_NGF_short, obs.scale = 1, var.scale = 1, 
+              groups = unlist(cast_NGF_short$casted[,1]), ellipse = TRUE, 
+              circle = TRUE)
+g <- g + scale_color_discrete(name = '')
+g <- g + theme(legend.direction = 'horizontal', 
+               legend.position = 'top')
+print(g)
+```
+
+```{r cache=TRUE}
+cast_FGF_short <- myCast(FGF_short, tim, cond, lab, "Ratio.norm.smooth", na.fill = 1.1)
+pca_FGF_short <- prcomp(cast_FGF_short$casted.matrix, center = T)
+
+
+library(ggbiplot)
+g <- ggbiplot(pca_FGF_short, obs.scale = 1, var.scale = 1, 
+              groups = unlist(cast_FGF_short$casted[,1]), ellipse = TRUE, 
+              circle = TRUE)
+g <- g + scale_color_discrete(name = '')
+g <- g + theme(legend.direction = 'horizontal', 
+               legend.position = 'top')
+print(g)
+```
+
+The PCA plots show the same separability properties as clustering does. In addition the correlation circle confirms that data gets separated after the peak. Note that the 2nd component is much more important in FGF.
+
 
 # Separability of snapshots between concentrations of the same GF
 
 Idea: For a given GF, at each time point and for each concentration get the signal distribution, check if they overlap well between different concentrations. Overlap can be measured by KS statistics, Bhattacharryya index, Kullback–Leibler...
 
 However this implicitly assumes that there's no subpopulation within a given condition (GF + concentration).
+
 
 ## Raw values
 
@@ -421,8 +631,8 @@ ggplot(sep.meas.raw, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + 
 Can sum up these curves with area under curve:
 ```{r}
 max.val <- sqrt(2) * 101
-auc <- sep.meas.raw[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
-auc
+auc.raw <- sep.meas.raw[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
+auc.raw
 ```
 
 The indicator seems to show the differences in behaviour really well: NGF curves are completely flat, indicating that there is few deviations between 2 concentrations. As for NGF and EGF 2 about clusters appear between bahaviours at low versus behaviours at high concentrations.
@@ -452,9 +662,8 @@ ggplot(sep.meas.norm, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 +
 ```
 
 ```{r}
-max.val <- sqrt(2) * 101
-auc <- sep.meas.norm[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
-auc
+auc.norm <- sep.meas.norm[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
+auc.norm
 ```
 
 Seems that the normalization makes no good to the metric by amplifying small differences (due to shift)?
@@ -482,9 +691,8 @@ ggplot(sep.meas.smooth, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1
 ```
 
 ```{r}
-max.val <- sqrt(2) * 101
-auc <- sep.meas.smooth[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
-auc
+auc.smooth <- sep.meas.smooth[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
+auc.smooth
 ```
 
 Same as for normalization, probably better to stick to raw data if possible.
@@ -578,16 +786,22 @@ bootstrap.auc.percol <- function(x, y, B, metric = "jm"){
 ```
 
 
-```{r warning=F}
-a <- myCast(FGF[Condition=="F-0.25"], "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
-b <- myCast(FGF[Condition=="F-250"],  "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
-temp <- bootstrap.auc.percol(a, b, 500)
-hist(temp/max.val, freq=F)
+```{r warning=F, cache=TRUE, fig.width=21, fig.height=30}
+wrap_bootcol <- function(x, y, meas, n){
+  a <- myCast(x, "RealTime", "Condition", "Label", meas, 1100)$casted.matrix
+  b <- myCast(y, "RealTime", "Condition", "Label", meas, 1100)$casted.matrix
+  return(bootstrap.auc.percol(a, b, n))
+}
 
-# Standard Error of the estimator
-summary(temp/max.val)
-sd(temp/max.val)
+bootcol <- apply(conditions, 2, function(x) wrap_bootcol(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", 500))
+bootcol <- bootcol/max.val
+colnames(bootcol) <- apply(conditions, 2, paste, collapse=" ; ")
+par(mfrow=c(6,3))
+for(j in 1:ncol(bootcol)){
+  hist(bootcol[,j], main = colnames(bootcol)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+}
 ```
+
 
 We see that the average of the distribution corresponds to the observed value.
 
@@ -611,17 +825,45 @@ bootstrap.auc.perrow <- function(x, y, B, metric = "jm"){
   # B: number of boostraps
   # metric: one of "jm", "bh", "div", "tdiv", "ks"
   if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
-  return(replicate(B, one.bootstrap.auc.percol(x,y,metric)))
+  return(replicate(B, one.bootstrap.auc.perrow(x,y,metric)))
 }
 ```
 
-```{r warning=F}
-a <- myCast(EGF[Condition=="E-0.25"], "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
-b <- myCast(EGF[Condition=="E-250"],  "RealTime", "Condition", "Label", "Ratio", 1100)$casted.matrix
-temp <- bootstrap.auc.perrow(a, b, 500)
-hist(temp/max.val)
+```{r warning=F, cache=TRUE, fig.width=21, fig.height=30}
+wrap_bootrow <- function(x, y, meas, n){
+  a <- myCast(x, "RealTime", "Condition", "Label", meas, 1100)$casted.matrix
+  b <- myCast(y, "RealTime", "Condition", "Label", meas, 1100)$casted.matrix
+  return(bootstrap.auc.perrow(a, b, n))
+}
+
+bootrow <- apply(conditions, 2, function(x) wrap_bootrow(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", 500))
+bootrow <- bootrow/max.val
+colnames(bootrow) <- apply(conditions, 2, paste, collapse=" ; ")
+par(mfrow=c(6,3))
+for(j in 1:ncol(bootrow)){
+  hist(bootrow[,j], main = colnames(bootrow)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+}
 ```
 
+#### Confidence Interval from bootstraps
+
+```{r eval=F}
+# Get CI directly from bootstrap quantiles
+ci.bootcol <- apply(bootcol, 2, quantile, probs = c(0.025, 0.975))
+ci.bootrow <- apply(bootrow, 2, quantile, probs = c(0.025, 0.975))
+```
+
+```{r eval=F}
+plot(seq_along(auc.raw), auc.raw, type = "p", ylim = c(0,0.4), main = "Bootcol intervals")
+segments(x0=seq_along(auc.raw), y0=ci.bootcol[1,], y1=ci.bootcol[2,])
+abline(v=c(6.5,12.5), lty="dashed")
+```
+
+```{r eval=FALSE}
+plot(seq_along(auc.raw), auc.raw, type = "p", ylim = c(0,0.4), main = "Bootrow intervals")
+segments(x0=seq_along(auc.raw), y0=ci.bootrow[1,], y1=ci.bootrow[2,])
+abline(v=c(6.5,12.5), lty="dashed")
+```
 
 # Cross-Correlations/Coherence between concentrations of the same GF
 
@@ -634,5 +876,11 @@ Could also check coherence (cross-correlation based on spectral densities).
 
 Idea: Quantize the signals and check how complex they are. Pool all concentrations of a single GF together and see how complex the resulting image is. We can quantize the signals and compute the entropy, or do it directly from a heatmap (quantization is then performed by color coding).    
 
+```{r eval=F}
+# Get the RGB heatmap
+library(png)
+heatm <- readPNG("C:/Users/pixel/Dropbox/Marc-Antoine/data/set2_Yannick_EGFNGFFGFsust_PC12/heatmap.png")
+# Got to greyscale with a simple average of channels
+```
 
 
