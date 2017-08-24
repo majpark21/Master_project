@@ -3,3 +3,9 @@
 .RData
 .Ruserdata
 package.R
+EGF.Robj
+EGF_subsamp.csv
+FGF.Robj
+FGF_subsamp.csv
+NGF.Robj
+NGF_subsamp.csv
