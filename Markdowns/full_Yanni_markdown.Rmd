@@ -978,6 +978,8 @@ We are interested in quantifying the noise of the response for one GF in one con
 
 ### Of raw signal
 
+
+
 ### Of rounded signal
 
 ### Of quantized signal
@@ -1037,6 +1039,7 @@ Overlap of clipped trajectories was designed for oscillating data, doesn't make 
 ```{r cache=TRUE}
 pairwise_dtw <- function(data, condition, label, measure){
   require(data.table)
+  require(dtw)
   setkeyv(data, c(condition, label))
 
   # Number of rows for data table initialization, sum of number of pairs in each condition
@@ -1100,3 +1103,108 @@ ggplot(Yanni_dtw.raw, aes(x=Condition, y=log(DTW))) + geom_boxplot() + ggtitle("
 ggplot(Yanni_dtw.smooth, aes(x=Condition, y=DTW)) + geom_boxplot() + ggtitle("Pairwise DTW, Euclidean, normalized smooth ratio")
 ```
 
+## Complexity of heatmaps
+
+Pick a random sample of 40 trajectories, plot a heatmap, save size of the object.
+
+### Size image
+
+#### With unclipped data
+
+Outlier values might drive the whole heatmap as it has to adjust the whole color scale for one value. This might create instability in the size of the resulting file.
+
+Here with PNG compression.
+
+```{r cache=TRUE}
+plot.heat.save.figure <- function(data, meas.col, n, directory = "plot_heat_output/", save.table = F, ncolor = 20){
+  require(gplots)
+  # Got to matrix
+  temp <- as.matrix(dcast(data, Condition + Label ~ RealTime, value.var = meas.col))[,-c(1,2)]
+  class(temp) <- "numeric"
+  if(save.table) labels <-  as.matrix(dcast(data, Condition + Label ~ RealTime, value.var = meas.col))[,2]
+  
+  # Select N rows from this matrix
+  smpl <- sample(1:nrow(temp), n)
+  temp <- temp[smpl,]
+  if(save.table) labels.smpl <- labels[smpl]
+  
+  cond <- gsub(pattern = "\\.", "_", as.character(unique(data$Condition)))
+  cond <- gsub(pattern = "-", "", cond)
+  
+  # Plot and save heatmap to PNG
+  png(paste0(directory, cond, ".png"))
+  heatmap.2(temp, dendrogram='none', Rowv=T, Colv=F, trace='none', key = F, labRow = "", labCol = "", lhei = c(1,1e6), lwid = c(1,1e6), col = heat.colors(ncolor))
+  dev.off()
+  
+  #jpeg(paste0(directory, cond, ".jpg"))
+  #heatmap.2(temp, dendrogram='none', Rowv=T, Colv=F, trace='none', key = F, labRow = "", labCol = "", lhei = c(1,1e6), lwid = c(1,1e6), col = heat.colors(ncolor))
+  #dev.off()
+  if(save.table) write.csv(x = data[Label %in% labels.smpl], file = paste0(directory, cond, ".csv"), row.names = F)
+  
+  # Get the size of the heatmap image file
+  return(get.file.size(paste0(directory, cond, ".png")))
+}
+
+
+get.file.size <- function(file){
+  # Standard output is the size of the file, write to a temp file
+  command <- paste0("bash -c \"stat --format=\"%s\" ", file, "> temp.out\"")
+  system(command)
+  # Read the text file and return as numeric
+  return(as.numeric(readLines("temp.out")))
+}
+
+
+
+conditions <- unique(Yanni$Condition)
+temp <- replicate(2, sapply(conditions, function(x) plot.heat.save.figure(Yanni[Condition==x], "Ratio", n = 20, "../plot_heat_output/", ncolor = 30)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni[Condition==x], "Ratio.norm", n = 20, "../plot_heat_output/", ncolor = 30)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni[Condition==x], "Ratio.norm.smooth", n = 20, "../plot_heat_output/", ncolor = 30)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+```
+
+#### With clipped data
+
+```{r cache=TRUE}
+# Clip outlier values
+Yanni_clipped <- copy(Yanni)
+set(Yanni_clipped, i = which(Yanni_clipped[, Ratio] > 1800), j=3L, value = 1100) # Ratio is the 3rd column
+set(Yanni_clipped, i = which(Yanni_clipped[, Ratio.norm] > 1.4), j=5L, value = 1.1) # Ratio.norm is the 5th column
+set(Yanni_clipped, i = which(Yanni_clipped[, Ratio.norm.smooth] > 1.4), j=6L, value = 1.1) # Ratio.norm.smooth is the 6th column
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni_clipped[Condition==x], "Ratio", n = 20, "../plot_heat_output/", ncolor = 30)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni_clipped[Condition==x], "Ratio.norm", n = 20, "../plot_heat_output/", ncolor = 30)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni_clipped[Condition==x], "Ratio.norm.smooth", n = 20, "../plot_heat_output/", ncolor = 30)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+```
+
+
+
+### With greyscale images
+
+### With TIFF images
+
+### Vertical derivative filtering of the heatmaps
+
+
+## Coefficient of variation along time
