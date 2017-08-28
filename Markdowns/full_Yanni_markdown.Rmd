@@ -1115,8 +1115,8 @@ Outlier values might drive the whole heatmap as it has to adjust the whole color
 
 Here with PNG compression.
 
-```{r cache=TRUE}
-plot.heat.save.figure <- function(data, meas.col, n, directory = "plot_heat_output/", save.table = F, ncolor = 20){
+```{r}
+plot.heat.save.figure <- function(data, meas.col, n, directory = "plot_heat_output/", save.table = F, palette = heat.colors , ncolor = 20){
   require(gplots)
   # Got to matrix
   temp <- as.matrix(dcast(data, Condition + Label ~ RealTime, value.var = meas.col))[,-c(1,2)]
@@ -1133,7 +1133,7 @@ plot.heat.save.figure <- function(data, meas.col, n, directory = "plot_heat_outp
   
   # Plot and save heatmap to PNG
   png(paste0(directory, cond, ".png"))
-  heatmap.2(temp, dendrogram='none', Rowv=T, Colv=F, trace='none', key = F, labRow = "", labCol = "", lhei = c(1,1e6), lwid = c(1,1e6), col = heat.colors(ncolor))
+  heatmap.2(temp, dendrogram='none', Rowv=T, Colv=F, trace='none', key = F, labRow = "", labCol = "", lhei = c(1,1e6), lwid = c(1,1e6), col = palette(ncolor))
   dev.off()
   
   #jpeg(paste0(directory, cond, ".jpg"))
@@ -1153,11 +1153,11 @@ get.file.size <- function(file){
   # Read the text file and return as numeric
   return(as.numeric(readLines("temp.out")))
 }
+```
 
-
-
+```{r cache=TRUE}
 conditions <- unique(Yanni$Condition)
-temp <- replicate(2, sapply(conditions, function(x) plot.heat.save.figure(Yanni[Condition==x], "Ratio", n = 20, "../plot_heat_output/", ncolor = 30)))
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni[Condition==x], "Ratio", n = 20, "../plot_heat_output/", ncolor = 30)))
 rownames(temp) <- conditions
 temp2 <- as.data.table(temp, keep.rownames = T)
 ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
@@ -1181,7 +1181,9 @@ Yanni_clipped <- copy(Yanni)
 set(Yanni_clipped, i = which(Yanni_clipped[, Ratio] > 1800), j=3L, value = 1100) # Ratio is the 3rd column
 set(Yanni_clipped, i = which(Yanni_clipped[, Ratio.norm] > 1.4), j=5L, value = 1.1) # Ratio.norm is the 5th column
 set(Yanni_clipped, i = which(Yanni_clipped[, Ratio.norm.smooth] > 1.4), j=6L, value = 1.1) # Ratio.norm.smooth is the 6th column
+```
 
+```{r cache=TRUE}
 temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni_clipped[Condition==x], "Ratio", n = 20, "../plot_heat_output/", ncolor = 30)))
 rownames(temp) <- conditions
 temp2 <- as.data.table(temp, keep.rownames = T)
@@ -1200,11 +1202,208 @@ ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
 
 
 
-### With greyscale images
+### With greyscale images and clipped data
+
+#### With 5 levels
+```{r cache=TRUE}
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni_clipped[Condition==x], "Ratio", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 5)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni_clipped[Condition==x], "Ratio.norm", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 5)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni_clipped[Condition==x], "Ratio.norm.smooth", n = 20, palette = grey.colors, "../plot_heat_output/", ncolor = 5)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+```
+
+
+#### With 30 levels
+
+```{r cache=TRUE}
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni_clipped[Condition==x], "Ratio", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 30)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni_clipped[Condition==x], "Ratio.norm", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 30)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure(Yanni_clipped[Condition==x], "Ratio.norm.smooth", n = 20, palette = grey.colors, "../plot_heat_output/", ncolor = 30)))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+```
 
 ### With TIFF images
+
+```{r}
+plot.heat.save.figure.tiff <- function(data, meas.col, n, directory = "plot_heat_output/", save.table = F, palette = heat.colors , ncolor = 20, compression){
+  require(gplots)
+  # Got to matrix
+  temp <- as.matrix(dcast(data, Condition + Label ~ RealTime, value.var = meas.col))[,-c(1,2)]
+  class(temp) <- "numeric"
+  if(save.table) labels <-  as.matrix(dcast(data, Condition + Label ~ RealTime, value.var = meas.col))[,2]
+  
+  # Select N rows from this matrix
+  smpl <- sample(1:nrow(temp), n)
+  temp <- temp[smpl,]
+  if(save.table) labels.smpl <- labels[smpl]
+  
+  cond <- gsub(pattern = "\\.", "_", as.character(unique(data$Condition)))
+  cond <- gsub(pattern = "-", "", cond)
+  
+  # Plot and save heatmap to PNG
+  tiff(paste0(directory, cond, ".png"), compression = compression)
+  heatmap.2(temp, dendrogram='none', Rowv=T, Colv=F, trace='none', key = F, labRow = "", labCol = "", lhei = c(1,1e6), lwid = c(1,1e6), col = palette(ncolor))
+  dev.off()
+  
+  #jpeg(paste0(directory, cond, ".jpg"))
+  #heatmap.2(temp, dendrogram='none', Rowv=T, Colv=F, trace='none', key = F, labRow = "", labCol = "", lhei = c(1,1e6), lwid = c(1,1e6), col = heat.colors(ncolor))
+  #dev.off()
+  if(save.table) write.csv(x = data[Label %in% labels.smpl], file = paste0(directory, cond, ".csv"), row.names = F)
+  
+  # Get the size of the heatmap image file
+  return(get.file.size(paste0(directory, cond, ".png")))
+}
+```
+
+#### Without compression
+
+```{r cache=TRUE}
+temp <- replicate(5, sapply(conditions, function(x) plot.heat.save.figure.tiff(Yanni_clipped[Condition==x], "Ratio", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 30, compression = "none")))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(5, sapply(conditions, function(x) plot.heat.save.figure.tiff(Yanni_clipped[Condition==x], "Ratio.norm", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 30, compression = "none")))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(5, sapply(conditions, function(x) plot.heat.save.figure.tiff(Yanni_clipped[Condition==x], "Ratio.norm.smooth", n = 20, palette = grey.colors, "../plot_heat_output/", ncolor = 30, compression = "none")))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+```
+
+Just to check that all images have exactly the same size (each pixel is encoded).
+
+#### With run run-length encoding
+
+Run-length encoding (RLE) is a very simple form of lossless data compression in which runs of data (that is, sequences in which the same data value occurs in many consecutive data elements) are stored as a single data value and count, rather than as the original run. This is most useful on data that contains many such runs. Consider, for example, simple graphic images such as icons, line drawings, and animations. It is not useful with files that don't have many runs as it could greatly increase the file size. https://en.wikipedia.org/wiki/Run-length_encoding
+
+MAKES MY COMPUTER CRASH
+
+```{r eval=FALSE}
+temp <- replicate(1, sapply(conditions, function(x) plot.heat.save.figure.tiff(Yanni_clipped[Condition==x], "Ratio", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 30, compression = "rle")))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+```
+
+#### With lzw
+
+```{r cache=TRUE}
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure.tiff(Yanni_clipped[Condition==x], "Ratio", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 30, compression = "lzw")))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure.tiff(Yanni_clipped[Condition==x], "Ratio.norm", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 30, compression = "lzw")))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure.tiff(Yanni_clipped[Condition==x], "Ratio.norm.smooth", n = 20, palette = grey.colors, "../plot_heat_output/", ncolor = 30, compression = "lzw")))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+```
+
+#### With lzw+p
+
+tiff compression types "lzw+p" and "zip+p" use horizontal differencing (‘differencing predictor’, section 14 of the TIFF specification) in combination with the compression method, which is effective for continuous-tone images, especially colour ones.
+
+```{r cache=TRUE}
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure.tiff(Yanni_clipped[Condition==x], "Ratio", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 30, compression = "lzw+p")))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure.tiff(Yanni_clipped[Condition==x], "Ratio.norm", n = 20, "../plot_heat_output/", palette = grey.colors, ncolor = 30, compression = "lzw+p")))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+
+temp <- replicate(30, sapply(conditions, function(x) plot.heat.save.figure.tiff(Yanni_clipped[Condition==x], "Ratio.norm.smooth", n = 20, palette = grey.colors, "../plot_heat_output/", ncolor = 30, compression = "lzw+p")))
+rownames(temp) <- conditions
+temp2 <- as.data.table(temp, keep.rownames = T)
+ggplot(melt(temp2, id.vars = "rn"), aes(x=rn, y =value)) + geom_boxplot()
+```
+
+#### With lzw+p and transposed image
+
+
 
 ### Vertical derivative filtering of the heatmaps
 
 
 ## Coefficient of variation along time
+
+### Mean and standard deviation
+
+```{r}
+coeff.var <- Yanni[, .(mean.raw = mean(Ratio),
+                       sd.raw = sd(Ratio),
+                       mean.norm = mean(Ratio.norm),
+                       sd.norm = sd(Ratio.norm),
+                       mean.smooth = mean(Ratio.norm.smooth),
+                       sd.smooth = sd(Ratio.norm.smooth)),
+                       by = c("Condition", "RealTime")]
+coeff.var[, c("coeff.raw", "coeff.norm", "coeff.smooth") := list(sd.raw/mean.raw, sd.norm/mean.norm, sd.smooth/mean.smooth)]
+
+ggplot(coeff.var, aes(x = RealTime, y = coeff.raw)) + geom_line() + facet_wrap("Condition") + ggtitle("Coefficient of variation - Raw data")
+ggplot(coeff.var, aes(x = RealTime, y = coeff.norm)) + geom_line() + facet_wrap("Condition") + ggtitle("Coefficient of variation - Normalized data")
+ggplot(coeff.var, aes(x = RealTime, y = coeff.smooth)) + geom_line() + facet_wrap("Condition") + ggtitle("Coefficient of variation - Normalized and smoothed data")
+```
+
+```{r}
+coeff.var[, .(sum.raw = sum(coeff.raw, na.rm = T),
+              sum.norm = sum(coeff.norm, na.rm = T),
+              sum.smooth = sum(coeff.smooth, na.rm = T)),
+              by = Condition]
+```
+
+
+### Median and IQR
+
+```{r}
+coeff.var.robust <- Yanni[, .(med.raw = median(Ratio),
+                       iqr.raw = IQR(Ratio, na.rm = T),
+                       med.norm = median(Ratio.norm),
+                       iqr.norm = IQR(Ratio.norm, na.rm = T),
+                       med.smooth = median(Ratio.norm.smooth),
+                       iqr.smooth = IQR(Ratio.norm.smooth, na.rm = T)),
+                       by = c("Condition", "RealTime")]
+coeff.var.robust[, c("coeff.raw", "coeff.norm", "coeff.smooth") := list(iqr.raw/med.raw, iqr.norm/med.norm, iqr.smooth/med.smooth)]
+
+ggplot(coeff.var.robust, aes(x = RealTime, y = coeff.raw)) + geom_line() + facet_wrap("Condition") + ggtitle("Robust Coefficient of variation - Raw data")
+ggplot(coeff.var.robust, aes(x = RealTime, y = coeff.norm)) + geom_line() + facet_wrap("Condition") + ggtitle("Robust Coefficient of variation - Normalized data")
+ggplot(coeff.var.robust, aes(x = RealTime, y = coeff.smooth)) + geom_line() + facet_wrap("Condition") + ggtitle("Robust Coefficient of variation - Normalized and smoothed data")
+```
+
+```{r}
+coeff.var.robust[, .(sum.raw = sum(coeff.raw, na.rm = T),
+              sum.norm = sum(coeff.norm, na.rm = T),
+              sum.smooth = sum(coeff.smooth, na.rm = T)),
+              by = Condition]
+```
+
