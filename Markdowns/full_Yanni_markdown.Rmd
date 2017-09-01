@@ -654,7 +654,7 @@ ggplot(sep.meas.raw, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + 
 
 Can sum up these curves with area under curve:
 ```{r}
-max.val <- sqrt(2) * 101
+max.val <- 2 * 101
 auc.raw <- sep.meas.raw[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")] # a few NAs, slight bias in the values
 auc.raw
 ```
