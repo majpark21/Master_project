@@ -1,3 +1,4 @@
+pdf("Figures_Yanni.pdf", width = 12, height=12)
 # Load data ----
 source("rscripts/package.R")
 del.cols <- names(Yanni)[5:9]
@@ -337,9 +338,9 @@ mybreaks <- quantile(auc.raw$auc, probs = seq(0,1, length.out = 10))
 mybreaks <- quantile(auc.raw$auc, probs = seq(0,1, length.out = 16))
 color.annot <- "black"
 
-heatmap.2(dist.raw.EGF, Rowv = F, Colv = F, dendrogram = "none", col=mypal, breaks = mybreaks, key = T, trace= "none", main = "AUC separability - EGF", margins=c(7,7), cellnote = annot.matrix.EGF, notecex = 1.75, notecol = color.annot)
-heatmap.2(dist.raw.FGF, Rowv = F, Colv = F, dendrogram = "none", col=mypal, breaks = mybreaks, key = T, trace= "none", main = "AUC separability - FGF", margins=c(7,7), cellnote = annot.matrix.FGF, notecex = 1.75, notecol = color.annot)
-heatmap.2(dist.raw.NGF, Rowv = F, Colv = F, dendrogram = "none", col=mypal, breaks = mybreaks, key = T, trace= "none", main = "AUC separability - NGF", margins=c(7,7), cellnote = annot.matrix.NGF, notecex = 1.75, notecol = color.annot)
+heatmap.2(dist.raw.EGF, Rowv = F, Colv = F, dendrogram = "none", col=mypal, breaks = mybreaks, key = F, trace= "none", main = "AUC separability - EGF", margins=c(7,7), cellnote = annot.matrix.EGF, notecex = 1.75, notecol = color.annot)
+heatmap.2(dist.raw.FGF, Rowv = F, Colv = F, dendrogram = "none", col=mypal, breaks = mybreaks, key = F, trace= "none", main = "AUC separability - FGF", margins=c(7,7), cellnote = annot.matrix.FGF, notecex = 1.75, notecol = color.annot)
+heatmap.2(dist.raw.NGF, Rowv = F, Colv = F, dendrogram = "none", col=mypal, breaks = mybreaks, key = F, trace= "none", main = "AUC separability - NGF", margins=c(7,7), cellnote = annot.matrix.NGF, notecex = 1.75, notecol = color.annot)
 
 plot(as.dendrogram(hclust(as.dist(dist.raw.EGF))), ylim = c(0, 0.225), main="AUC as distance matrix - EGF")
 plot(as.dendrogram(hclust(as.dist(dist.raw.FGF))), ylim = c(0, 0.225), main="AUC as distance matrix - FGF")
@@ -364,3 +365,4 @@ plot_cluster(clust_FGF$table, id.vars.col = 1:9, cluster.col = "k_2", type = "co
 
 plot_cluster(clust_NGF$table, id.vars.col = 1:9, cluster.col = "k_2", type = "trajectory") + ggtitle("2 Cluster trajectories - NGF")
 plot_cluster(clust_NGF$table, id.vars.col = 1:9, cluster.col = "k_2", type = "composition") + ggtitle("2 Cluster compostions - NGF")
+dev.off()
