@@ -1,0 +1,471 @@
+---
+title: "Cora dataset multipulse"
+author: "Jacques Marc-Antoine"
+date: "4 septembre 2017"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background and Objectives
+
+Want to generate a matrix of perturbation with siRNA in the signalling network surrounding ERK response to GF. To analyze the induced perturbations, there's a need for a palette of measurements that will quantify features that can be seen "by eye". Such features can roughly be divided in 2 categories, the first one being features defined for a single condition (treatment):
+
+* synhcrony of the cell response (correlation in time)
+* robustness of the cell response (correlation in amplitude)
+* "causality" how well do the cells follow the signal (correlation cell-signal)?
+
+Others define features relative to 2 different treatmens:
+
+* SMETS
+* separability of responses snapshots (Bhattacharryya at each time point)
+
+
+# Data presentation and normalization
+
+```{r}
+source("../rscripts/package.R")
+rm(Yanni)
+```
+
+Data are coming from multipulse experiments which differs in the frequency of pulses and intensity of the pulse.
+
+For convenience we define the following code to represent the treatment conditions: "PXX-IYY(-UO)"; where X represent the frequency of pulse, I its intensity and -UO indicates the presence of an ihibitor of MEK, a kinase upstream of ERK.
+
+We now normalize the trajectories on a "per-trajectory" basis, using fold-change based on the 7 first minutes. We also cut the last 20min of measurement. 
+
+```{r}
+Cora <- myNorm(in.dt = Cora, in.meas.col = "Ratio", in.rt.min = 0, in.rt.max = 10, in.by.cols = c("Condition", "Label"), in.type = "fold.change")
+Cora <- Cora[RealTime <= 80]
+```
+
+We also add 2 rows corresponding to 2 missing measurements:
+```{r}
+Cora <- rbind(Cora, list("P20-I25", "7_28", 14, 1.3, 1.7))
+Cora <- rbind(Cora, list("P20-I25", "7_28", 33, 1.23, 1.6))
+setkey(Cora, "Condition", "Label", "RealTime")
+```
+
+```{r echo = FALSE}
+Cora
+```
+
+
+```{r cahe = T, fig.width=21, fig.height=12}
+ggplot(Cora, aes(x=RealTime, y=Ratio.norm)) + geom_line(aes(group=Label), alpha = 0.4) + facet_wrap("Condition", scales = "free") + stat_summary(fun.y = mean, geom = "line",lwd=1.75, col = "red") + ggtitle("Per-trajectory normalized, fold change based on time [0, 10]") + theme(text = element_text(size = 25))
+```
+
+Cora noted there's an issue with the inhibitor UO, we should probably not consider these weird curves for now.
+
+A rapid summary of these time-courses:
+
+* With long-spaced pulses, the response typically appears as an exponential decay with well separated peaks.
+* Increased pulse frequencies decrease the amplitudes of the peak until there's no peak anymore.
+* P10-I25 seems to have an irregular behaviour on a 1-pulse time basis, but a regular one on a 2-pulse time basis.
+* Light intensity seems to have a less important impact on the reponse, though a stronger light seems to lead to more regular oscillations.
+
+# PCA
+
+Remove the curves with UO for this analysis (big outliers).
+
+```{r message=FALSE}
+library(ggbiplot)
+library(stringr)
+cast.Cora <- dcast(Cora[!(Condition %in% c("P1-I100-UO", "P5-I100-UO", "P10-I100-UO", "P20-I100-UO"))], Condition + Label ~ RealTime , value.var = "Ratio.norm")
+# Replace NA with finite values
+for(j in 1:ncol(cast.Cora)){
+  set(x = cast.Cora, i = which(is.na(cast.Cora[[j]])), j = j, value = 0.3)
+}
+pca.Cora <- prcomp(cast.Cora[,-c(1,2)], center = T, scale. = F)
+cast.Cora$Pulse <- str_extract(string = unlist(cast.Cora[,1]), pattern = "^P[0-9]+")
+cast.Cora$Intensity <- str_extract(string = unlist(cast.Cora[,1]), pattern = "I[0-9]+")
+```
+
+```{r fig.width=18, fig.height=12, warning=FALSE, cache=TRUE}
+ggbiplot(pca.Cora, obs.scale = 1, var.scale = 1, 
+              groups = unlist(cast.Cora[,1]), ellipse = TRUE, var.axes = F,
+              circle = F) + theme(legend.direction = 'horizontal', 
+              legend.position = 'top') + ggtitle('Colored on Condition') +
+              theme(text = element_text(size = 25))
+
+ggbiplot(pca.Cora, obs.scale = 1, var.scale = 1, 
+              groups = unlist(cast.Cora[,84]), ellipse = TRUE, var.axes = F, 
+              circle = F) + theme(legend.direction = 'horizontal', 
+              legend.position = 'top') + ggtitle('Colored on Pulse') +
+              theme(text = element_text(size = 25))
+
+ggbiplot(pca.Cora, obs.scale = 1, var.scale = 1, 
+              groups = unlist(cast.Cora[,85]), text = unlist(cast.Cora[,2]), ellipse = TRUE,  var.axes = F,
+              circle = F) + theme(legend.direction = 'horizontal', 
+              legend.position = 'top') + ggtitle('Colored on Intensity') +
+              theme(text = element_text(size = 25))
+```
+
+Both first components separate on intensity and pulse. Interestingly, the I10 group is nicely clustered. This could indicate that robustness of signal with so little light is low.
+
+```{r eval=F, echo=F}
+plotly(ggbiplot(pca.Cora, obs.scale = 1, var.scale = 1, 
+               groups = unlist(cast.Cora[,85]), ellipse = TRUE,  var.axes = F,
+               circle = F))
+```
+
+
+
+# Synchrony measures
+
+## Distance to mean
+
+```{r fig.width=12}
+distm.Cora <- dist_mean(Cora, "Condition", "RealTime", "Ratio", "Label")
+ggplot(distm.Cora, aes(x=Condition, y=log(euclid_to_mean))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Log euclidean distance to mean trajectory - Raw data")
+```
+
+Not very informative. Try with normalized data:
+
+```{r fig.width=12}
+distm.Cora <- dist_mean(Cora, "Condition", "RealTime", "Ratio.norm", "Label")
+ggplot(distm.Cora, aes(x=Condition, y=log(euclid_to_mean))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Log euclidean distance to mean trajectory - Normalized data")
+```
+
+Conditions that were successfully inhibited by UO have a very low value because they are almost constant. The same holds for conditions with ligh intensity of 10, which are globally flat.
+
+More than synchrony, it seems that the distance to the mean indicates the robustness of the response, variations in amplitude and not in time.
+
+
+## Overlap of clipped and correlations
+
+### Choice of k for rolling mean and overlap
+
+Helper function to take a sample of trajectories in the provided condition, plot them along with their rolling means and clipped versions. Rolling mean is used when looking for overlap of clipped trajectories (clip = 1 if above rolling mean, 0 otherwise).
+
+```{r}
+# Visualize effect of clipping for choosing rolling mean window width
+visualize.clip <- function(data, condition, meas.col, k, n = 6, cond.col = "Condition", lab.col = "Label", main = "Title"){
+  # Pick n random trajectories
+  samp <- sample(data[get(cond.col) == condition, get(lab.col)], size = n, replace = F)
+  par(mfrow=c(2,3))
+  for(i in samp){
+    clipped <- wrap_clip(data[get(cond.col) == condition & get(lab.col) == i, get(meas.col)], k = k)
+    clipped <- ifelse(clipped == 1, max(data[get(cond.col) == condition & get(lab.col) == i, get(meas.col)]),
+                      min(data[get(cond.col) == condition & get(lab.col) == i, get(meas.col)]))
+    plot(data[get(cond.col) == condition & get(lab.col) == i, get(meas.col)], type = "l", col = "red", lwd = 2, ylab = i, main = main)
+    lines(rollex(data[get(cond.col) == condition & get(lab.col) == i, get(meas.col)], k = k), col = "darkgreen", lwd = 2, type ="l",      lty = "dashed")
+    lines(clipped, col = "blue", lwd = 2, type ="s")
+  }
+}
+```
+
+An ideal rolling mean should cut oscillation in 2, and a relatively flat profile. A good rule of thumb for these datasets is to simply pick the pulse frequency as window width.
+
+```{r message=F, fig.width=18}
+# Not good since it follows the signal too closely (sensitive to noise)
+visualize.clip(Cora, "P10-I100", "Ratio", 7, main = "Rolling mean window width 7 - Pulse 10")
+# Good
+visualize.clip(Cora, "P10-I100", "Ratio", 10, main = "Rolling mean window width 10 - Pulse 10")
+# Not good, because the rollig mean starts to be in quadratic phase with signal
+visualize.clip(Cora, "P10-I100", "Ratio", 13, main = "Rolling mean window width 13 - Pulse 10")
+```
+
+### Compute pairwise measures
+
+The overlap of clipped trajectories, for conditions with pulse frequency of 1 isn't really relevant since they are not oscillatory.
+
+```{r cache=T}
+# Divide in 3 to take different widow width
+pw.Cora.1 <- all_pairwise_stats(data = Cora[Condition %in% c("P1-I10","P1-I25","P1-I50","P1-I100","P1-I100-UO","P5-I10","P5-I25","P5-I50","P5-I100","P5-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio", k_roll_mean = 5)
+pw.Cora.2 <- all_pairwise_stats(data = Cora[Condition %in% c("P10-I10","P10-I25","P10-I50","P10-I100","P10-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio", k_roll_mean = 10)
+pw.Cora.3 <- all_pairwise_stats(data = Cora[Condition %in% c("P20-I10","P20-I25","P20-I50","P20-I100","P20-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio", k_roll_mean = 20)
+
+pw.Cora <- rbind(pw.Cora.1, pw.Cora.2, pw.Cora.3)
+rm(pw.Cora.1, pw.Cora.2, pw.Cora.3)
+```
+
+```{r fig.width=21, fig.height=12}
+temp <- melt(pw.Cora, id.vars = c("Condition","Label1", "Label2"))
+ggplot(data = temp, aes(x=Condition, y = value)) + geom_boxplot() + facet_wrap("variable") + theme(text = element_text(size = 10)) + ggtitle("Pairwise measures of synchrony - Raw data")
+```
+
+Conditions with pulse frequency of 1, still have a high correlation. Conditions with low light intensity display poor robustness. Overlap globally shows the same trends, but with tighter distributions.
+
+Overlap of clipped trajectory has an advantage over distance to mean and correlations: it detects also trajectories that are highly correlated but almost flat.
+
+Repeat with normalized ratios:
+
+```{r cache=T, echo=F}
+# Divide in 3 to take different widow width
+pw.Cora.1 <- all_pairwise_stats(data = Cora[Condition %in% c("P1-I10","P1-I25","P1-I50","P1-I100","P1-I100-UO","P5-I10","P5-I25","P5-I50","P5-I100","P5-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio.norm", k_roll_mean = 5)
+pw.Cora.2 <- all_pairwise_stats(data = Cora[Condition %in% c("P10-I10","P10-I25","P10-I50","P10-I100","P10-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio.norm", k_roll_mean = 10)
+pw.Cora.3 <- all_pairwise_stats(data = Cora[Condition %in% c("P20-I10","P20-I25","P20-I50","P20-I100","P20-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio.norm", k_roll_mean = 20)
+
+pw.norm.Cora <- rbind(pw.Cora.1, pw.Cora.2, pw.Cora.3)
+rm(pw.Cora.1, pw.Cora.2, pw.Cora.3)
+```
+
+```{r fig.width=21, fig.height=12, echo = F}
+temp <- melt(pw.norm.Cora, id.vars = c("Condition","Label1", "Label2"))
+ggplot(data = temp, aes(x=Condition, y = value)) + geom_boxplot() + facet_wrap("variable") + theme(text = element_text(size = 10)) + ggtitle("Pairwise measures of synchrony - Normalized data")
+```
+
+Results are vastly identical (100% indentical for Overlap).
+
+# Amplitude difference measures
+
+## Distance to individual rolling means
+
+```{r}
+amp.Cora.1 <- amplitude_oscillations(data = Cora[Condition %in% c("P1-I10","P1-I25","P1-I50","P1-I100","P1-I100-UO","P5-I10","P5-I25","P5-I50","P5-I100","P5-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio", k_roll_mean = 5)
+amp.Cora.2 <- amplitude_oscillations(data = Cora[Condition %in% c("P10-I10","P10-I25","P10-I50","P10-I100","P10-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio", k_roll_mean = 10)
+amp.Cora.3 <- amplitude_oscillations(data = Cora[Condition %in% c("P20-I10","P20-I25","P20-I50","P20-I100","P20-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio", k_roll_mean = 20)
+
+amp.Cora <- rbind(amp.Cora.1, amp.Cora.2, amp.Cora.3)
+rm(amp.Cora.1, amp.Cora.2, amp.Cora.3)
+```
+
+```{r fig.width=12}
+temp <- melt(amp.Cora, id.vars = c("Condition","Label"))
+ggplot(data = temp, aes(x=Condition, y = log(value))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Amplitude variation, distance to individual rolling mean - Raw data")
+```
+
+Repeat with normalized data:
+
+```{r echo = FALSE}
+amp.Cora.1 <- amplitude_oscillations(data = Cora[Condition %in% c("P1-I10","P1-I25","P1-I50","P1-I100","P1-I100-UO","P5-I10","P5-I25","P5-I50","P5-I100","P5-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio.norm", k_roll_mean = 5)
+amp.Cora.2 <- amplitude_oscillations(data = Cora[Condition %in% c("P10-I10","P10-I25","P10-I50","P10-I100","P10-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio.norm", k_roll_mean = 10)
+amp.Cora.3 <- amplitude_oscillations(data = Cora[Condition %in% c("P20-I10","P20-I25","P20-I50","P20-I100","P20-I100-UO")], condition = "Condition", label = "Label", measure = "Ratio.norm", k_roll_mean = 20)
+
+amp.norm.Cora <- rbind(amp.Cora.1, amp.Cora.2, amp.Cora.3)
+rm(amp.Cora.1, amp.Cora.2, amp.Cora.3)
+```
+
+```{r fig.width=12, echo = FALSE}
+temp <- melt(amp.norm.Cora, id.vars = c("Condition","Label"))
+ggplot(data = temp, aes(x=Condition, y = log(value))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Amplitude variation, distance to individual rolling mean - Normalized data")
+```
+
+The trends are the expected ones, but the measure is somehow biased by the different number of peaks!
+
+# Autocorrelation - Height of spectrum power peak at pulse frequency
+
+Spectral density (which composes the power spectrum) is equivalent to autocorrelation in frequency space; the same way as coherence is equivalent to cross-correlation.
+
+Number of pulse time to get max autocorrelation? For this analysis we will harshly trim the time series to keep only the oscillatory parts.
+
+```{r}
+Cora.short <- Cora[RealTime >= 10 & RealTime <= 70]
+```
+
+## Autocorrelations of raw data
+ 
+### Autocorrelation at harmonic time only
+
+```{r}
+get.ac.harmonics <- function(ts, f0, plot = F, lag.max = 1e6, ...){
+  # Return autocorrelation values only at harmonics (i.e. multiple of f0)
+  # Get autocorrelation
+  temp <- acf(ts, plot = plot, lag.max = lag.max, ...)
+  # Which lag are multiple of f0?
+  lags <- which(temp$lag %% f0 == 0)
+  return(list(acf = temp$acf[lags], lag = temp$lag[lags]))
+}
+
+acf.Cora.1 <- Cora.short[, .(acf = get.ac.harmonics(Ratio, f0 = as.integer(str_extract(Condition, "[0-9]+")))$acf), by = c("Condition", "Label")]
+acf.Cora.2 <- Cora.short[, .(lag = get.ac.harmonics(Ratio, f0 = as.integer(str_extract(Condition, "[0-9]+")))$lag), by = c("Condition", "Label")]
+acf.harm.Cora <- cbind(acf.Cora.1, acf.Cora.2[,3])
+rm(acf.Cora.1, acf.Cora.2)
+
+acf.harm.Cora[, harmonic.number := (seq_along(lag)-1), by = c("Condition", "Label")]
+```
+
+```{r fig.width=21, fig.height=12, cache=T}
+ggplot(acf.harm.Cora[harmonic.number %in% 0:5], aes(x=harmonic.number, y=acf)) + geom_line(aes(group=Label), alpha = 0.2) + facet_grid(Condition ~.) + theme(text = element_text(size = 10))
+```
+
+Get a difference between first and second harmonics?
+
+### Autocorrelation at all lags
+
+```{r}
+get.ac.all <- function(ts, plot = F, lag.max = 1e6, ...){
+  # Return autocorrelation at all all lags
+  temp <- acf(ts, plot = plot, lag.max = lag.max, ...)
+  return(list(acf = as.vector(temp$acf), lag = as.vector(temp$lag)))
+}
+
+acf.Cora.1 <- Cora.short[, .(acf = get.ac.all(Ratio)$acf), by = c("Condition", "Label")]
+acf.Cora.2 <- Cora.short[, .(lag = get.ac.all(Ratio)$lag), by = c("Condition", "Label")]
+acf.all.Cora <- cbind(acf.Cora.1, acf.Cora.2[,3])
+rm(acf.Cora.1, acf.Cora.2)
+```
+
+```{r fig.width=21, fig.height=12, cache=T}
+ggplot(acf.all.Cora, aes(x=lag, y=acf)) + geom_line(aes(group=Label), alpha = 0.2) + facet_grid(Condition ~.) + theme(text = element_text(size = 10))
+```
+
+```{r message=F}
+library(gplots)
+par(cex.main=0.75)
+temp <- dcast(acf.all.Cora, Condition + Label ~ lag ,value.var = "acf")
+breakpoints <- unique(temp[,Condition])
+breakpoints <- sapply(breakpoints, function(x) max(which(temp[, Condition] == x)))
+col.pulse <- str_extract(as.character(temp[,Condition]), "P[0-9]+")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P1$", replacement = "blue")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P5$", replacement = "red")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P10$", replacement = "green")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P20$", replacement = "yellow")
+heatmap.2(as.matrix(temp[,-c(1,2)]), Colv = F, Rowv = F, colRow = col.pulse, dendrogram = "none", trace="none", rowsep = breakpoints, sepwidth = c(5,5), main = "Autocorrelations of raw data \n Blue: P1; Red: P5; Green: P10, Yellow: P20 \n Breaks indicate different light intensities", xlab = "Lag", ylab = "Trajectories", key = F)
+```
+
+Note that this heatmap is the equivalent of a power spectrum in the time space.
+
+### Auto-correlations after circularization of signal
+
+Using cross-correlation on circularised signal:
+
+```{r message=F}
+source("../rscripts/circular_cross_correlation.R")
+
+circular.all.Cora <- Cora.short[, .(circ.cc = circular.cc(Ratio, Ratio)), by = c("Condition","Label")]
+circular.all.Cora[, lag := (seq_along(circ.cc) - 1), by =  c("Condition","Label")]
+```
+
+```{r echo=F}
+temp <- dcast(circular.all.Cora, Condition + Label ~ lag ,value.var = "circ.cc")
+breakpoints <- unique(temp[,Condition])
+breakpoints <- sapply(breakpoints, function(x) max(which(temp[, Condition] == x)))
+col.pulse <- str_extract(as.character(temp[,Condition]), "P[0-9]+")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P1$", replacement = "blue")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P5$", replacement = "red")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P10$", replacement = "green")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P20$", replacement = "yellow")
+par(cex.main=0.75)
+heatmap.2(as.matrix(temp[,-c(1,2)]), Colv = F, Rowv = F, colRow = col.pulse, dendrogram = "none", trace="none", rowsep = breakpoints, sepwidth = c(5,5), main = "Autocorrelations of CIRCULARISED raw data  \n Blue: P1; Red: P5; Green: P10, Yellow: P20 \n Breaks indicate different light intensities", xlab = "Lag", ylab = "Trajectories", key = F)
+```
+
+Note that for the last lag value, correlation gets back to 1 since it is equivalent to a lag of zero.
+
+In all these previous plots, it appears clearly that pulsing every minute do not lead to any kind of periodicity. On the other hand, harmonics (multiple of pulse time) do indeed have a good autocorrelation for the other conditions.
+
+## Autocorrelations of normalized data
+
+Sanity check: should be the same as unormalized.
+
+### Autocorrelation at all lags
+
+Using normalized data:
+
+```{r echo=F}
+acf.Cora.1 <- Cora.short[, .(acf = get.ac.all(Ratio.norm)$acf), by = c("Condition", "Label")]
+acf.Cora.2 <- Cora.short[, .(lag = get.ac.all(Ratio.norm)$lag), by = c("Condition", "Label")]
+acf.all.Cora <- cbind(acf.Cora.1, acf.Cora.2[,3])
+rm(acf.Cora.1, acf.Cora.2)
+
+temp <- dcast(acf.all.Cora, Condition + Label ~ lag ,value.var = "acf")
+breakpoints <- unique(temp[,Condition])
+breakpoints <- sapply(breakpoints, function(x) max(which(temp[, Condition] == x)))
+col.pulse <- str_extract(as.character(temp[,Condition]), "P[0-9]+")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P1$", replacement = "blue")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P5$", replacement = "red")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P10$", replacement = "green")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P20$", replacement = "yellow")
+par(cex.main=0.75)
+heatmap.2(as.matrix(temp[,-c(1,2)]), Colv = F, Rowv = F, colRow = col.pulse, dendrogram = "none", trace="none", rowsep = breakpoints, sepwidth = c(5,5), main = "Autocorrelations of normalized data \n Blue: P1; Red: P5; Green: P10, Yellow: P20 \n Breaks indicate different light intensities", xlab = "Lag", ylab = "Trajectories", key = F)
+```
+
+### Auto-correlations after circularization of signal
+
+```{r echo=F}
+circular.all.Cora <- Cora.short[, .(circ.cc = circular.cc(Ratio.norm, Ratio.norm)), by = c("Condition","Label")]
+circular.all.Cora[, lag := (seq_along(circ.cc) - 1), by =  c("Condition","Label")]
+
+temp <- dcast(circular.all.Cora, Condition + Label ~ lag ,value.var = "circ.cc")
+breakpoints <- unique(temp[,Condition])
+breakpoints <- sapply(breakpoints, function(x) max(which(temp[, Condition] == x)))
+col.pulse <- str_extract(as.character(temp[,Condition]), "P[0-9]+")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P1$", replacement = "blue")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P5$", replacement = "red")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P10$", replacement = "green")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P20$", replacement = "yellow")
+par(cex.main=0.75)
+heatmap.2(as.matrix(temp[,-c(1,2)]), Colv = F, Rowv = F, colRow = col.pulse, dendrogram = "none", trace="none", rowsep = breakpoints, sepwidth = c(5,5), main = "Autocorrelations of CIRCULARISED normalized data  \n Blue: P1; Red: P5; Green: P10, Yellow: P20 \n Breaks indicate different light intensities", xlab = "Lag", ylab = "Trajectories", key = F)
+```
+
+
+Looking at these heatmaps, we see especially for conditions P5 and P10 that the 1st harmonic (at time 5 and 10min resp.) is globally not as strong as the 2nd (at time 10 and 20min resp.).
+
+## Autocorrelation ratio at harmonics 1, 2 and 3
+
+Now, we would like to see the evolution of harmonics intensities, for example in conditions pulsed every 5 or 10min, it seems that taking 2 pulse times into account would return a higher autocorrelation than 1 pulse time.
+
+![](./multipulse_Cora_markdown_files/harmonics.tif)
+
+```{r fig.width=17, fig.height=21}
+get.circc.harmonics <- function(ts, f0, plot = F, lag.max = 1e6, ...){
+  # Return autocorrelation values only at harmonics (i.e. multiple of f0) (circular cross-correlation)
+  # Get autocorrelation
+  temp <- circular.cc(ts, ts)
+  # lags
+  names(temp) <- seq_along(temp) - 1
+  # Which lag are multiple of f0?
+  lags <- which(as.numeric(names(temp)) %% f0 == 0)
+  return(temp[lags])
+}
+
+harm.circc.Cora <- Cora.short[, .(circ.cc = get.circc.harmonics(Ratio, f0 = as.integer(str_extract(Condition, "[0-9]+")))), by = c("Condition", "Label")]
+harm.circc.Cora[, harmonic.number := (seq_along(circ.cc)-1), by = c("Condition", "Label")]
+
+ggplot(harm.circc.Cora[harmonic.number %in% 1:3], aes(x=as.factor(harmonic.number), y=circ.cc)) + geom_line(aes(group=Label), alpha = 0.2) + stat_summary(fun.y=mean, colour="red", geom="point",aes(group=Condition)) + facet_grid(Condition ~.) + theme(text = element_text(size = 25)) + geom_hline(yintercept = 0.5, col = 'red')
+```
+
+Get ratios:
+
+```{r}
+temp <- harm.circc.Cora[harmonic.number %in% 1:3, ]
+temp <- dcast(temp, Condition + Label ~ harmonic.number, value.var = "circ.cc")
+temp$Ratio.1.2 <- temp$`1` / temp$`2`
+temp$Ratio.1.3 <- temp$`1` / temp$`3`
+```
+
+```{r}
+ggplot(temp, aes(x=Condition, y=Ratio.1.2)) + geom_boxplot() + scale_y_continuous(limits = c(-1.5,1.5)) + ggtitle("Autocorrelation 1st harmonics / 2nd harmonics")
+```
+
+```{r}
+ggplot(temp, aes(x=Condition, y=Ratio.1.3)) + geom_boxplot() + scale_y_continuous(limits = c(-1.5,1.5)) + ggtitle("Autocorrelation 1st harmonics / 3rd harmonics")
+```
+
+As 1st peak is always a lot larger, should repeat without it. Also the problem of even and odd nulber of peaks when there is a tandem of peak, could try to isolate 1/2 oscillations and to use only this as a template. Statistics for the ratio, significantly different from1?
+
+# Extract global features
+
+## Envelope analysis
+
+### Local maxima detection
+
+```{r eval=F}
+which(diff(sign(diff(traj)))==-2)+1
+
+or 
+
+
+x <- c(1, 2, 3, 2, 1, 1, 2, 1)
+library(zoo)
+ xz <- as.zoo(x)
+ rollapply(xz, 3, function(x) which.min(x)==2)
+```
+
+With the second one, can give a minimum separation between two maxima.
+
+### Spline between maxima
+
+
+## Exponential fitting - Feature extraction
+
+
+
+
+
