@@ -84,4 +84,14 @@ all_pairwise_stats <- function(data, condition, label, measure, k_roll_mean = 5)
 }
 
 
-
+complete.time.series <- function(data, cond.col, lab.col, time.col, time.vector, meas.col, fill = NA){
+  # Add a row with fill measurement for all missing measurement in the long format
+  # time vector: over which time should ALL time series span? Missing times will be added to series where it's not present
+  require(data.table)
+  # 1) Perform left outer join with a table that contains all RealTime
+  temp <- CJ(Condition=unique(data[[cond.col]]), Label=unique(data[[lab.col]]), RealTime=time.vector)
+  temp <- merge(temp, data, by = c(cond.col, lab.col, time.col), all.x = T)
+  # 2) Trim the rows that contains only NA (i.e. this combination of Label and Condition does not exist in the real data)
+  out <- temp[, if(!all(is.na(meas.col))) .SD, by = .(Condition, Label)]
+  return(out)
+}
