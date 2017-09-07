@@ -122,14 +122,14 @@ plotly(ggbiplot(pca.Cora, obs.scale = 1, var.scale = 1,
 
 ```{r fig.width=12}
 distm.Cora <- dist_mean(Cora, "Condition", "RealTime", "Ratio", "Label")
-ggplot(distm.Cora, aes(x=Condition, y=log(euclid_to_mean))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Log euclidean distance to mean trajectory - Raw data")
+ggplot(distm.Cora, aes(x=Condition, y=log(euclid_to_mean))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Log euclidean distance to mean trajectory - Raw data") + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
 ```
 
 Not very informative. Try with normalized data:
 
 ```{r fig.width=12}
 distm.Cora <- dist_mean(Cora, "Condition", "RealTime", "Ratio.norm", "Label")
-ggplot(distm.Cora, aes(x=Condition, y=log(euclid_to_mean))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Log euclidean distance to mean trajectory - Normalized data")
+ggplot(distm.Cora, aes(x=Condition, y=log(euclid_to_mean))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Log euclidean distance to mean trajectory - Normalized data")+ geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
 ```
 
 Conditions that were successfully inhibited by UO have a very low value because they are almost constant. The same holds for conditions with ligh intensity of 10, which are globally flat.
@@ -187,7 +187,7 @@ rm(pw.Cora.1, pw.Cora.2, pw.Cora.3)
 
 ```{r fig.width=21, fig.height=12}
 temp <- melt(pw.Cora, id.vars = c("Condition","Label1", "Label2"))
-ggplot(data = temp, aes(x=Condition, y = value)) + geom_boxplot() + facet_wrap("variable") + theme(text = element_text(size = 10)) + ggtitle("Pairwise measures of synchrony - Raw data")
+ggplot(data = temp, aes(x=Condition, y = value)) + geom_boxplot() + facet_wrap("variable") + theme(text = element_text(size = 10)) + ggtitle("Pairwise measures of synchrony - Raw data") + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
 ```
 
 Conditions with pulse frequency of 1, still have a high correlation. Conditions with low light intensity display poor robustness. Overlap globally shows the same trends, but with tighter distributions.
@@ -208,7 +208,7 @@ rm(pw.Cora.1, pw.Cora.2, pw.Cora.3)
 
 ```{r fig.width=21, fig.height=12, echo = F}
 temp <- melt(pw.norm.Cora, id.vars = c("Condition","Label1", "Label2"))
-ggplot(data = temp, aes(x=Condition, y = value)) + geom_boxplot() + facet_wrap("variable") + theme(text = element_text(size = 10)) + ggtitle("Pairwise measures of synchrony - Normalized data")
+ggplot(data = temp, aes(x=Condition, y = value)) + geom_boxplot() + facet_wrap("variable") + theme(text = element_text(size = 10)) + ggtitle("Pairwise measures of synchrony - Normalized data") + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
 ```
 
 Results are vastly identical (100% indentical for Overlap).
@@ -228,7 +228,7 @@ rm(amp.Cora.1, amp.Cora.2, amp.Cora.3)
 
 ```{r fig.width=12}
 temp <- melt(amp.Cora, id.vars = c("Condition","Label"))
-ggplot(data = temp, aes(x=Condition, y = log(value))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Amplitude variation, distance to individual rolling mean - Raw data")
+ggplot(data = temp, aes(x=Condition, y = log(value))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Amplitude variation, distance to individual rolling mean - Raw data") + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
 ```
 
 Repeat with normalized data:
@@ -244,12 +244,185 @@ rm(amp.Cora.1, amp.Cora.2, amp.Cora.3)
 
 ```{r fig.width=12, echo = FALSE}
 temp <- melt(amp.norm.Cora, id.vars = c("Condition","Label"))
-ggplot(data = temp, aes(x=Condition, y = log(value))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Amplitude variation, distance to individual rolling mean - Normalized data")
+ggplot(data = temp, aes(x=Condition, y = log(value))) + geom_boxplot() + theme(text = element_text(size = 10)) + ggtitle("Amplitude variation, distance to individual rolling mean - Normalized data") + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
 ```
 
 The trends are the expected ones, but the measure is somehow biased by the different number of peaks!
 
-# Autocorrelation - Height of spectrum power peak at pulse frequency
+## Time series decomposition
+
+Time series can be decomposed in 3 terms: trend-cyclicity, seasonality and remainder. Cyclicity appears when a variation is determined by a fixed period, it is thus included with the trend. In contrast seasonality appears at a non-fixed period. 
+
+The distance to individual rolling mean, is acutally like a crude form of seasonality extraction and the rolling mean being a way to extract the trend. We'll try to use time series decomposition to get the amplitude of the seasonality.
+
+For now we will assume only additive decomposition.
+
+### Decomposition choice
+
+#### Classical decomposition
+
+https://www.otexts.org/fpp/6/3
+
+Steps are:
+
+* We get the trend using our function of rolling mean with linear interpolation at the extremities.
+* Detrend series by subtracting trend.
+* Average every ith point of an oscillation to get seasonal effect for the ith part of the oscillation.
+* Center seasonal value.
+* Get remainder.
+
+```{r}
+source("../rscripts/classical_decomposition.R")
+Cora.short <- Cora[RealTime >= 10 & RealTime <= 70]
+```
+
+```{r, fig.height=12}
+traj <- Cora.short[.("P10-I100", "2_1"), Ratio.norm]
+temp <- classical.decomposition(ts = traj, frequency = 10, robust = T)
+par(mfrow=c(4,1))
+plot(seq_along(traj), traj, main = "Data", type = "l", xlab = "")
+plot(seq_along(traj), temp[,2], main = "Seasonal", type = "l", xlab = "")
+plot(seq_along(traj), temp[,1], main = "Trend", type = "l", xlab = "")
+plot(seq_along(traj), temp[,3], main = "Remainder", type = "h")
+abline(h=0, lty="dashed")
+max(temp[,"seasonal"]) - min(temp[,"seasonal"])
+```
+
+```{r, fig.height=12}
+traj <- Cora.short[.("P5-I100", "2_1"), Ratio.norm]
+temp <- classical.decomposition(ts = traj, frequency = 5, robust = T)
+par(mfrow=c(4,1))
+plot(seq_along(traj), traj, main = "Data", type = "l", xlab = "")
+plot(seq_along(traj), temp[,2], main = "Seasonal", type = "l", xlab = "")
+plot(seq_along(traj), temp[,1], main = "Trend", type = "l", xlab = "")
+plot(seq_along(traj), temp[,3], main = "Remainder", type = "h")
+abline(h=0, lty="dashed")
+max(temp[,"seasonal"]) - min(temp[,"seasonal"])
+```
+
+Impossible to use frequency 1.
+```{r, fig.height=12}
+traj <- Cora.short[.("P1-I100", "2_1"), Ratio.norm]
+temp <- classical.decomposition(ts = traj, frequency = 2, robust = T)
+par(mfrow=c(4,1))
+plot(seq_along(traj), traj, main = "Data", type = "l", xlab = "")
+plot(seq_along(traj), temp[,2], main = "Seasonal", type = "l", xlab = "")
+plot(seq_along(traj), temp[,1], main = "Trend", type = "l", xlab = "")
+plot(seq_along(traj), temp[,3], main = "Remainder", type = "h")
+abline(h=0, lty="dashed")
+max(temp[,"seasonal"]) - min(temp[,"seasonal"])
+```
+
+```{r, fig.height=12}
+traj <- Cora.short[.("P20-I100", "2_1"), Ratio.norm]
+temp <- classical.decomposition(ts = traj, frequency = 20, robust = T)
+par(mfrow=c(4,1))
+plot(seq_along(traj), traj, main = "Data", type = "l", xlab = "")
+plot(seq_along(traj), temp[,2], main = "Seasonal", type = "l", xlab = "")
+plot(seq_along(traj), temp[,1], main = "Trend", type = "l", xlab = "")
+plot(seq_along(traj), temp[,3], main = "Remainder", type = "h")
+abline(h=0, lty="dashed")
+max(temp[,"seasonal"]) - min(temp[,"seasonal"])
+```
+
+#### STL decomposition
+
+A more advanced decomposition is the so-called "Seasonal and Trend decomposition using Loess" (see https://www.otexts.org/fpp/6/5 ).
+
+When converting the data to time series object, we indicate the frequency in pulse time units. So if there's one pulse evry 10min, and measurements are performed every 1min, frequency is 10. 
+
+A series with relatively large oscillation amplitude:
+```{r}
+traj <- ts(Cora.short[.("P10-I100", "2_1"), Ratio.norm], frequency = 10)
+fit <- stl(x = traj, s.window ="periodic", t.window = NULL, robust=T)
+plot(fit)
+# Amplitude of the seasonal component
+max(fit$time.series[,"seasonal"]) - min(fit$time.series[,"seasonal"])
+```
+
+A series with relatively small oscillation amplitude:
+```{r}
+traj <- ts(Cora.short[.("P5-I100", "2_1"), Ratio.norm], frequency = 5)
+fit <- stl(x = traj, s.window = "periodic", t.window = NULL, robust=T)
+plot(fit)
+# Amplitude of the seasonal component
+max(fit$time.series[,"seasonal"]) - min(fit$time.series[,"seasonal"])
+```
+
+```{r}
+traj <- ts(Cora.short[.("P20-I100", "2_1"), Ratio.norm], frequency = 20)
+fit <- stl(x = traj, s.window = "periodic", t.window = NULL, robust=T)
+plot(fit)
+# Amplitude of the seasonal component
+max(fit$time.series[,"seasonal"]) - min(fit$time.series[,"seasonal"])
+```
+
+
+Results are very similar with the homemade classical decomposition and STL. The best for now is probably to stick to homemade since it is simpler with less parameters.
+
+It is to note that the trend estimation is quite terrible using P20.
+
+
+### Assess amplitude of oscillations with seasonal amplitude
+
+Time series decomposition becomes very handy here, as we can just extract the amplitude of seasonal component oscillation.
+
+```{r}
+wrap_amplitude <- function(ts, frequency, robust = T){
+  frequency <- unique(frequency)
+  if(frequency == 1) return(0)
+  temp <- classical.decomposition(ts, frequency, robust)
+  return(max(temp[,"seasonal"]) - min(temp[,"seasonal"]))
+}
+
+Cora.short[, pulse.freq := as.numeric(str_extract(Condition, "[0-9]+"))]
+amp.season.Cora <- Cora.short[, .(amplitude.season = wrap_amplitude(Ratio.norm, pulse.freq)), by = c("Condition", "Label")]
+```
+
+```{r fig.width=14}
+ggplot(amp.season.Cora, aes(x=Condition, y =amplitude.season)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
+```
+
+This metric seems to work much better than the distance to individual rolling means. Amplitude of oscillations increases steadily with light intensity, except for P20 where maximal intensity actually decreases a bit the amplitude of the oscillation compared to the second max intensity.
+
+A big drawback of the method is that we need at least 2 measures between each cycle. Since we cannot give an estimation of oscillation amplitude (if any) for P1.
+
+### Using rolling mean before trimming for trend estimation
+
+The classical_decomposition used in the previous section estimates the trend using a rolling mean extended with linear interpolation. But in our case we can get rid of the interpolation which inherently introduces some error, by directly passing the rolling mean as a trend:
+
+```{r warning=F}
+modified.decomposition <- function(ts, trend, frequency, robust = T){
+  if(!exists("rollex", mode="function")) source("./overlap_clipping.R")
+  detrend <- ts - trend
+  seasonal <- rep(NA, length(ts))
+  if(robust){
+    for(i in 1:frequency){
+      index <- seq(i, length(ts), by = frequency)
+      seasonal[index] <- median(detrend[index])
+    } 
+  } else {
+    for(i in 1:frequency){
+      index <- seq(i, length(ts), by = frequency)
+      seasonal[index] <- mean(detrend[index])
+    }
+  }
+  seasonal <- scale(seasonal, center = T, scale = F)
+  return(max(seasonal) - min(seasonal))
+}
+
+Cora[, trend := rollex(Ratio.norm, k = as.numeric(str_extract(Condition, "[0-9]+"))), by = c("Condition", "Label")]
+Cora.short <- Cora[RealTime >= 10 & RealTime <= 70]
+mod.season.Cora <- Cora.short[, .(amplitude.season = modified.decomposition(Ratio.norm, trend, as.numeric(str_extract(Condition, "[0-9]+")))), by = c("Condition", "Label")]
+```
+
+```{r fig.width=14}
+ggplot(mod.season.Cora, aes(x=Condition, y =amplitude.season)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
+```
+
+Absence of difference is suspicious -> TO CHECK
+
+#  Detect cyclic pattern - Autocorrelation - Height of spectrum power peak at pulse frequency
 
 Spectral density (which composes the power spectrum) is equivalent to autocorrelation in frequency space; the same way as coherence is equivalent to cross-correlation.
 
@@ -401,9 +574,9 @@ Looking at these heatmaps, we see especially for conditions P5 and P10 that the 
 
 Now, we would like to see the evolution of harmonics intensities, for example in conditions pulsed every 5 or 10min, it seems that taking 2 pulse times into account would return a higher autocorrelation than 1 pulse time.
 
-![](./multipulse_Cora_markdown_files/harmonics.tif)
+![](./multipulse_Cora_markdown_files/harmonics.png)
 
-```{r fig.width=17, fig.height=21}
+```{r fig.width=14, fig.height=21}
 get.circc.harmonics <- function(ts, f0, plot = F, lag.max = 1e6, ...){
   # Return autocorrelation values only at harmonics (i.e. multiple of f0) (circular cross-correlation)
   # Get autocorrelation
@@ -418,27 +591,54 @@ get.circc.harmonics <- function(ts, f0, plot = F, lag.max = 1e6, ...){
 harm.circc.Cora <- Cora.short[, .(circ.cc = get.circc.harmonics(Ratio, f0 = as.integer(str_extract(Condition, "[0-9]+")))), by = c("Condition", "Label")]
 harm.circc.Cora[, harmonic.number := (seq_along(circ.cc)-1), by = c("Condition", "Label")]
 
-ggplot(harm.circc.Cora[harmonic.number %in% 1:3], aes(x=as.factor(harmonic.number), y=circ.cc)) + geom_line(aes(group=Label), alpha = 0.2) + stat_summary(fun.y=mean, colour="red", geom="point",aes(group=Condition)) + facet_grid(Condition ~.) + theme(text = element_text(size = 25)) + geom_hline(yintercept = 0.5, col = 'red')
+
+ggplot(harm.circc.Cora[harmonic.number %in% 1:3], aes(x=as.factor(harmonic.number), y=circ.cc)) +
+  geom_line(aes(group=Label), alpha = 0.2) +
+  geom_point() +
+  stat_summary(fun.y=mean, colour="red", geom="point", aes(group=Condition)) +
+  stat_summary(fun.y=mean, colour="red", geom="line", aes(group=Condition)) +
+  facet_grid(Condition ~.) + theme(text = element_text(size = 25)) +
+  ggtitle("Evolution of autocorrelation at lags corresponding to pulse time harmonics")
 ```
 
-Get ratios:
+Get ratios, first add one to every correlations to avoid negative ratio:
 
 ```{r}
 temp <- harm.circc.Cora[harmonic.number %in% 1:3, ]
 temp <- dcast(temp, Condition + Label ~ harmonic.number, value.var = "circ.cc")
-temp$Ratio.1.2 <- temp$`1` / temp$`2`
-temp$Ratio.1.3 <- temp$`1` / temp$`3`
+setnames(temp, c("1", "2", "3"), make.names(1:3))
+temp[, c("X1", "X2", "X3") := list(X1+1, X2+1, X3+1)]
+temp$Ratio.1.2 <- temp$X1 / temp$X2
+temp$Ratio.1.3 <- temp$X1 / temp$X3
 ```
 
-```{r}
-ggplot(temp, aes(x=Condition, y=Ratio.1.2)) + geom_boxplot() + scale_y_continuous(limits = c(-1.5,1.5)) + ggtitle("Autocorrelation 1st harmonics / 2nd harmonics")
+```{r fig.width=14}
+ggplot(temp, aes(x=Condition, y=Ratio.1.2)) + geom_boxplot() + ggtitle("Autocorrelation 1st harmonics / 2nd harmonics") + geom_hline(yintercept = 1, col = 'red', lty = 'dashed') + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
 ```
 
-```{r}
-ggplot(temp, aes(x=Condition, y=Ratio.1.3)) + geom_boxplot() + scale_y_continuous(limits = c(-1.5,1.5)) + ggtitle("Autocorrelation 1st harmonics / 3rd harmonics")
+For conditions P5-I25, P5-I50 and P10-I25, the second harmonics usually present a higher autocorrelation value. This is coherent with the observation of the time series mean, in which we see an alternance of "a big" and "a small" wave in these conditions.
+
+Compare with power spectrum:
+```{r fig.height=8}
+par(mfrow=c(2,1))
+plot(Cora[.("P5-I25", "6_20"), Ratio], type="l", ylab = "Ratio", xlab= "Time")
+spectrum(Cora[.("P5-I25", "6_20"), Ratio])
 ```
 
-As 1st peak is always a lot larger, should repeat without it. Also the problem of even and odd nulber of peaks when there is a tandem of peak, could try to isolate 1/2 oscillations and to use only this as a template. Statistics for the ratio, significantly different from1?
+Time period of 5min (1 harmonics) corresponds to a frequency of 0.2, time period of 10min (2 harmonics) corresponds to a frequency of 0.1. Here we see that both peaks are sensibly at the same height. This could be because these power analysis, in difference with the autocorrelation ratio, do not take only 2 periods in account but all of them.
+
+```{r fig.width=14}
+ggplot(temp, aes(x=Condition, y=Ratio.1.3)) + geom_boxplot() + ggtitle("Autocorrelation 1st harmonics / 3rd harmonics") + geom_hline(yintercept = 1, col = 'red', lty = 'dashed') + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
+```
+
+We don't observe any third order pattern here (except for conditions P20, but it's not relevant since there is only 3 oscillations in the data for these conditions).
+
+Try further:
+
+* As 1st peak is always a lot larger, could repeat without it. 
+* The problem of even and odd number of peaks when there is a tandem of peak, could try to isolate 1/2 oscillations and to use only this as a template.
+* Statistics for the ratio, significantly different from 1?
+* To get closer to power spectrum analysis, instead of computing the ratio of 1st and 2nd harmonics only, could take one by one all harmonics and divide by the next one, get a mean ratio out of that? Could similarly be extended to harmonics 3...
 
 # Extract global features
 
