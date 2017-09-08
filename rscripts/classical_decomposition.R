@@ -43,3 +43,18 @@ classical.decomposition <- function(ts, frequency, robust = T){
   colnames(out) <- c("trend", "seasonal", "remainder")
   return(out)
 }
+
+
+plot.decomposition <- function(dat, dec.mat, main = "Time series decomposition"){
+  xax <- seq_along(dat)
+  layout(matrix(1:4, ncol = 1), widths = 1, heights = c(1.6,1,1,1.5), respect = F)
+  par(mar = c(0, 5.1, 4.1, 2.1))
+  plot(xax, dat, main = main, type = "l", xaxt = 'n', xlab = "", ylab = "Data", cex.lab = 1.4, cex.main = 1.5)
+  par(mar = c(0, 5.1, 0, 2.1))
+  plot(xax, dec.mat[,"seasonal"], type = "l", xaxt = 'n', xlab = "", ylab = "Seasonal", cex.lab = 1.4)
+  par(mar = c(0, 5.1, 0, 2.1))
+  plot(xax, dec.mat[,"trend"], type = "l", xaxt = 'n', xlab = "", ylab = "Trend", cex.lab = 1.4)
+  par(mar = c(4.1, 5.1, 0, 2.1))
+  plot(xax, dec.mat[,"remainder"], type = "h", ylab = "Remainder", xlab = "Time", cex.lab = 1.4)
+  abline(h=0, lty="dashed")
+}

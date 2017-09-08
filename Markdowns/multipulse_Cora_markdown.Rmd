@@ -69,6 +69,8 @@ A rapid summary of these time-courses:
 * P10-I25 seems to have an irregular behaviour on a 1-pulse time basis, but a regular one on a 2-pulse time basis.
 * Light intensity seems to have a less important impact on the reponse, though a stronger light seems to lead to more regular oscillations.
 
+------
+
 # PCA
 
 Remove the curves with UO for this analysis (big outliers).
@@ -115,6 +117,7 @@ plotly(ggbiplot(pca.Cora, obs.scale = 1, var.scale = 1,
 ```
 
 
+------
 
 # Synchrony measures
 
@@ -213,6 +216,8 @@ ggplot(data = temp, aes(x=Condition, y = value)) + geom_boxplot() + facet_wrap("
 
 Results are vastly identical (100% indentical for Overlap).
 
+------
+
 # Amplitude difference measures
 
 ## Distance to individual rolling means
@@ -276,54 +281,43 @@ source("../rscripts/classical_decomposition.R")
 Cora.short <- Cora[RealTime >= 10 & RealTime <= 70]
 ```
 
-```{r, fig.height=12}
+A couple of examples:
+
+```{r}
 traj <- Cora.short[.("P10-I100", "2_1"), Ratio.norm]
 temp <- classical.decomposition(ts = traj, frequency = 10, robust = T)
-par(mfrow=c(4,1))
-plot(seq_along(traj), traj, main = "Data", type = "l", xlab = "")
-plot(seq_along(traj), temp[,2], main = "Seasonal", type = "l", xlab = "")
-plot(seq_along(traj), temp[,1], main = "Trend", type = "l", xlab = "")
-plot(seq_along(traj), temp[,3], main = "Remainder", type = "h")
-abline(h=0, lty="dashed")
+plot.decomposition(traj, temp, "Data, P10-I100, 2_1")
 max(temp[,"seasonal"]) - min(temp[,"seasonal"])
 ```
 
-```{r, fig.height=12}
+The seasonal component looks like an exponential decay. The decomposition approach takes in account the slight collapsing of the trend in the last time points by averaging (effectively using median) to reconstruct the seasonal component. The error term is mostly localized around the first oscillation.
+
+```{r, echo = F}
 traj <- Cora.short[.("P5-I100", "2_1"), Ratio.norm]
 temp <- classical.decomposition(ts = traj, frequency = 5, robust = T)
-par(mfrow=c(4,1))
-plot(seq_along(traj), traj, main = "Data", type = "l", xlab = "")
-plot(seq_along(traj), temp[,2], main = "Seasonal", type = "l", xlab = "")
-plot(seq_along(traj), temp[,1], main = "Trend", type = "l", xlab = "")
-plot(seq_along(traj), temp[,3], main = "Remainder", type = "h")
-abline(h=0, lty="dashed")
+plot.decomposition(traj, temp, "Data , P5-I100, 2_1")
 max(temp[,"seasonal"]) - min(temp[,"seasonal"])
 ```
 
-Impossible to use frequency 1.
-```{r, fig.height=12}
-traj <- Cora.short[.("P1-I100", "2_1"), Ratio.norm]
-temp <- classical.decomposition(ts = traj, frequency = 2, robust = T)
-par(mfrow=c(4,1))
-plot(seq_along(traj), traj, main = "Data", type = "l", xlab = "")
-plot(seq_along(traj), temp[,2], main = "Seasonal", type = "l", xlab = "")
-plot(seq_along(traj), temp[,1], main = "Trend", type = "l", xlab = "")
-plot(seq_along(traj), temp[,3], main = "Remainder", type = "h")
-abline(h=0, lty="dashed")
-max(temp[,"seasonal"]) - min(temp[,"seasonal"])
-```
+The seasonal component looks like a sinusoid. The amplitude in seasonal is indeed smaller than the one observed in the previous series.
 
-```{r, fig.height=12}
+```{r, echo = F}
 traj <- Cora.short[.("P20-I100", "2_1"), Ratio.norm]
 temp <- classical.decomposition(ts = traj, frequency = 20, robust = T)
-par(mfrow=c(4,1))
-plot(seq_along(traj), traj, main = "Data", type = "l", xlab = "")
-plot(seq_along(traj), temp[,2], main = "Seasonal", type = "l", xlab = "")
-plot(seq_along(traj), temp[,1], main = "Trend", type = "l", xlab = "")
-plot(seq_along(traj), temp[,3], main = "Remainder", type = "h")
-abline(h=0, lty="dashed")
+plot.decomposition(traj, temp, "Data, P20-I100, 2_1")
 max(temp[,"seasonal"]) - min(temp[,"seasonal"])
 ```
+
+
+
+```{r, echo = F}
+traj <- Cora.short[.("P1-I100", "2_1"), Ratio.norm]
+temp <- classical.decomposition(ts = traj, frequency = 2, robust = T)
+plot.decomposition(traj, temp, "Data , P1-I100, 2_1")
+max(temp[,"seasonal"]) - min(temp[,"seasonal"])
+```
+
+The decomposition is impossible to use with frequency 1.
 
 #### STL decomposition
 
@@ -358,9 +352,7 @@ max(fit$time.series[,"seasonal"]) - min(fit$time.series[,"seasonal"])
 ```
 
 
-Results are very similar with the homemade classical decomposition and STL. The best for now is probably to stick to homemade since it is simpler with less parameters.
-
-It is to note that the trend estimation is quite terrible using P20.
+Results are very similar with the homemade classical decomposition and STL. The best for now is probably to stick to homemade since it is simpler with less parameters. Though STL probably does a better job at estimating the trend is case like P20.
 
 
 ### Assess amplitude of oscillations with seasonal amplitude
@@ -414,15 +406,18 @@ modified.decomposition <- function(ts, trend, frequency, robust = T){
 Cora[, trend := rollex(Ratio.norm, k = as.numeric(str_extract(Condition, "[0-9]+"))), by = c("Condition", "Label")]
 Cora.short <- Cora[RealTime >= 10 & RealTime <= 70]
 mod.season.Cora <- Cora.short[, .(amplitude.season = modified.decomposition(Ratio.norm, trend, as.numeric(str_extract(Condition, "[0-9]+")))), by = c("Condition", "Label")]
+Cora[, trend := NULL]
 ```
 
 ```{r fig.width=14}
 ggplot(mod.season.Cora, aes(x=Condition, y =amplitude.season)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top")
 ```
 
-Absence of difference is suspicious -> TO CHECK
+The difference between calculating the trend prior to trim time and after trimming is negligible.
 
-#  Detect cyclic pattern - Autocorrelation - Height of spectrum power peak at pulse frequency
+------
+
+# Detect cyclic pattern - Autocorrelation - Height of spectrum power peak at pulse frequency
 
 Spectral density (which composes the power spectrum) is equivalent to autocorrelation in frequency space; the same way as coherence is equivalent to cross-correlation.
 
@@ -640,7 +635,45 @@ Try further:
 * Statistics for the ratio, significantly different from 1?
 * To get closer to power spectrum analysis, instead of computing the ratio of 1st and 2nd harmonics only, could take one by one all harmonics and divide by the next one, get a mean ratio out of that? Could similarly be extended to harmonics 3...
 
+------
+
 # Extract global features
+
+## Long trend linear regression
+
+We can use the trend of time series decomposition for this, remember that it is simply a moving average that is extended by linear interpolation.
+
+One way to get a single number out of this trend is to perform a linear regression of it and to get the slope coefficient out. Notice that we don't care that much about the quality of the regression and use it purely as a descriptive mean. Actually autocorrelation in these series introduces autocorrelation in the residuals, which is a violation of the model assumptions. 
+
+```{r warning=F}
+Cora[, trend := rollex(Ratio.norm, k = as.numeric(str_extract(Condition, "[0-9]+"))), by = c("Condition", "Label")]
+Cora.short <- Cora[RealTime >= 10 & RealTime <= 70]
+```
+
+```{r}
+wrap_regression <- function(traj, time){
+  fit <- lm(traj ~ time)
+  return(list(coeff = fit$coefficients[2], p.val = coef(summary(fit))[2, "Pr(>|t|)"]))
+}
+reg.Cora <- Cora.short[, .(reg.slope = wrap_regression(trend, RealTime)$coeff), by = c("Condition", "Label")]
+reg.p.val.Cora <- Cora.short[, .(p.val = wrap_regression(trend, RealTime)$p.val), by = c("Condition", "Label")]
+```
+
+The slope in these models:
+
+```{r fig.width=12}
+ggplot(reg.Cora, aes(x=Condition, y=reg.slope)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("Slope coefficients after linear fitting of the trend")
+```
+
+Positive slopes are mostly outliers. Values of trends do not differ that much from a condition to another.
+
+The p-values associated with these slopes give an indication of how different the slope is from zero (no adjustment performed here).
+
+```{r, fig.width=12}
+ggplot(reg.p.val.Cora, aes(x=Condition, y=log(p.val))) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("P-values of slope coefficients after linear fitting of the trend") + geom_hline(yintercept = log(0.05), linetype="dashed")
+```
+
+The lower the value, the most significantly different from 0 the associated slope is. So most conditions P10 and P20 have a significant slope.
 
 ## Envelope analysis
 
@@ -662,8 +695,9 @@ With the second one, can give a minimum separation between two maxima.
 
 ### Spline between maxima
 
+------
 
-## Exponential fitting - Feature extraction
+# Exponential fitting - Feature extraction
 
 
 
