@@ -268,6 +268,8 @@ For now we will assume only additive decomposition.
 
 https://www.otexts.org/fpp/6/3
 
+Actually the following workflow is already implemented in R! See ?decompose.
+
 Steps are:
 
 * We get the trend using our function of rolling mean with linear interpolation at the extremities.
@@ -414,6 +416,66 @@ ggplot(mod.season.Cora, aes(x=Condition, y =amplitude.season)) + geom_boxplot(ae
 ```
 
 The difference between calculating the trend prior to trim time and after trimming is negligible.
+
+
+## Use remainder to detect variation in oscillation amplitude
+
+Seasonality is of forced fixed amplitude, and thus the trend should correct for offset such that the fit follows the signal as closely as possible. However since seasonality amplitude is fixed, there is a remainder, we can extract some statistics out of this remainders to get an idea about the variation around the seasonal amplitude. This characterizes an excess or a deficit of the (seasonality+trend).
+
+```{r}
+wrap_amplitude_variation <- function(ts, frequency, robust = T){
+  frequency <- unique(frequency)
+  if(frequency == 1) return(0)
+  temp <- classical.decomposition(ts, frequency, robust)
+  return(mean(temp[,"remainder"]))
+}
+
+Cora.short[, pulse.freq := as.numeric(str_extract(Condition, "[0-9]+"))]
+amp.variation.season.Cora <- Cora.short[, .(mean.remainder = wrap_amplitude_variation(Ratio.norm, pulse.freq), RealTime), by = c("Condition", "Label")]
+```
+
+```{r}
+ggplot(amp.variation.season.Cora, aes(x=Condition, y =mean.remainder)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("Mean remainder after time series decomposition")
+```
+
+Positive or negative remainder depend on which amplitude the seasonality has been "tuned on". Imagine there are 2 peaks of large amplitudes, versus 20 peaks of small amplitude: the robust estimation of seasonality will get calibrated to the small amplitude. Therefore the remainders for the large peaks will be positive and zero for the small ones. Now imagine there are 20 large peaks and 2 small ones, the remainders for the large peaks will be zero and negative for the small ones. This is visible for the series P20 on the heatmap, where the first peak is slightly higher than the 2 next ones, thus dampened down in a larger extend than the two other peaks are taken up.
+
+```{r fig.with = 14, cache=T}
+wrap_amplitude_variation <- function(ts, frequency, robust = T){
+  frequency <- unique(frequency)
+  if(frequency == 1) return(0)
+  temp <- classical.decomposition(ts, frequency, robust)
+  return(temp[,"remainder"])
+}
+
+temp <- Cora.short[, .(remainder = wrap_amplitude_variation(Ratio.norm, pulse.freq), RealTime), by = c("Condition", "Label")]
+temp <- dcast(temp, Condition + Label ~ RealTime ,value.var = "remainder")
+breakpoints <- unique(temp[,Condition])
+breakpoints <- sapply(breakpoints, function(x) max(which(temp[, Condition] == x)))
+col.pulse <- str_extract(as.character(temp[,Condition]), "P[0-9]+")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P1$", replacement = "blue")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P5$", replacement = "red")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P10$", replacement = "green")
+col.pulse <- str_replace(string = col.pulse, pattern = "^P20$", replacement = "yellow")
+library(gplots)
+mybreaks <- c(min(temp[,-c(1,2)]), -0.25, -0.10, 0.10, 0.25, max(temp[,-c(1,2)]))
+mypal <-  RColorBrewer::brewer.pal(5, name="Spectral")
+heatmap.2(as.matrix(temp[,-c(1,2)]), Colv = F, Rowv = F, colRow = col.pulse, dendrogram = "none", trace="none", rowsep = breakpoints, sepwidth = c(5,5), main = "Remainder (excess/deficit seasonality) \n Blue: P1; Red: P5; Green: P10, Yellow: P20 \n Breaks indicate different light intensities", xlab = "Time", ylab = "Trajectories", key = T, col = mypal, breaks = mybreaks, lwid = c(0.75, 4.5))
+```
+
+We see that the first peak concentrates most of the remainders, this is to be expected since it is consistently the largest peak in every condition. The second peaks in conditions P10 also display large remainder, but also at each peak the remainders are globally larger than for other conditions, this is coherent with the fact the biggest amplitude in oscillation are seen for P10.
+
+To simplify a bit the interpretation and get relevant statistics out of it, we consider only remainders of 5% or more and use absolute values.
+
+```{r}
+temp <- Cora.short[, .(remainder = wrap_amplitude_variation(Ratio.norm, pulse.freq), RealTime), by = c("Condition", "Label")]
+temp <- temp[remainder > 0.05 | remainder < 0.05]
+temp[, remainder := abs(remainder)]
+temp <- temp[, .(clipped.mean.remainder = mean(remainder)), by = c("Condition", "Label")]
+ggplot(temp, aes(x=Condition, y = clipped.mean.remainder)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("Mean of clipped remainder after time series decomposition")
+```
+
+Same conclusions are coming here, except that this metric seems more convenient than the previous ones: distribution of positive values, relatively small variance, and quite a good dispersion between conditions.
 
 ------
 
@@ -639,9 +701,42 @@ Try further:
 
 # Extract global features
 
+## Local maxima detection
+
+Will be useful for a couple of metrics tested afterwards:
+
+```{r}
+detect.maxima <- function(x, window.size){
+  require(zoo)
+  if(window.size %% 2 == 0) stop("window size must be odd")
+  middle <- ceiling(window.size / 2)
+  xz <- as.zoo(x)
+  out <- rollapply(x, window.size, function(x) which.max(x) == middle)
+  out <- c(rep(NA, middle-1), out, rep(NA, middle-1))
+  return(out)
+}
+
+detect.minima <- function(x, window.size){
+  require(zoo)
+  if(window.size %% 2 == 0) stop("window size must be odd")
+  middle <- ceiling(window.size / 2)
+  xz <- as.zoo(x)
+  out <- rollapply(x, window.size, function(x) which.min(x) == middle)
+  out <- c(rep(NA, middle-1), out, rep(NA, middle-1))
+  return(out)
+}
+  
+x <- sin(seq(0,25,0.1))
+plot(x)
+abline(v = which(detect.maxima(x, 7)), col = 'red', lty = 'dashed')
+abline(v = which(detect.minima(x, 7)), col = 'blue', lty = 'dashed')
+```
+
+Easily modified to have a minimal span between 2 maxima/minima.
+
 ## Long trend linear regression
 
-We can use the trend of time series decomposition for this, remember that it is simply a moving average that is extended by linear interpolation.
+We can use the trend of time series decomposition for this, remember that it is simply a moving average that is extended by linear interpolation. In other words, this is a linear regression of deseasonalized data.
 
 One way to get a single number out of this trend is to perform a linear regression of it and to get the slope coefficient out. Notice that we don't care that much about the quality of the regression and use it purely as a descriptive mean. Actually autocorrelation in these series introduces autocorrelation in the residuals, which is a violation of the model assumptions. 
 
@@ -673,25 +768,68 @@ The p-values associated with these slopes give an indication of how different th
 ggplot(reg.p.val.Cora, aes(x=Condition, y=log(p.val))) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("P-values of slope coefficients after linear fitting of the trend") + geom_hline(yintercept = log(0.05), linetype="dashed")
 ```
 
-The lower the value, the most significantly different from 0 the associated slope is. So most conditions P10 and P20 have a significant slope.
+The lower the value, the most significantly different from 0 the associated slope is. So most conditions P10 and P20 have a small  slope nevertheless significantly different from 0.
+
+## Long trend robust linear regression
+
+Can try robust fitting (maybe on non-deseasonalized data?):
+
+```{r eval = F}
+library(mblm)
+reg.robust.Cora <- mblm()
+```
+
+```{r eval = F}
+x <- Cora.short[.("P10-I50", "4_10"), Ratio.norm]
+time <- unique(Cora.short$RealTime)
+plot(x, type = "l")
+abline(lm(x~time), col ='red')
+abline(mblm(x~time), col = 'blue')
+abline(mblm(x~time, repeated = F), col = 'green')
+```
+
+## Linear regression of maxima
+
+```{r warning=F}
+wrap_max_reg <- function(traj, window.size){
+  if(window.size == 10){window.size <- 9}
+  else if(window.size == 20){window.size <- 19}
+  max.traj <- detect.maxima(traj, window.size)
+
+  # If no maxima detected, run simple linear regression
+  nber <- length(which(max.traj))
+  max.traj <- traj[which(max.traj)]
+  fit <- try(lm(max.traj ~ seq_along(max.traj)))
+  if(class(fit)== "try-error"){
+    nber <- numeric(0)
+    fit <- lm(traj ~ seq_along(traj))
+  }
+  
+  # p-values not return for regression performed on small vectors
+  p.val <- try(coef(summary(fit))[2, "Pr(>|t|)"])
+  if(class(p.val) == "try-error") p.val <- 2
+  return(list(coeff = fit$coefficients[2], p.val = p.val, nber.max = nber))
+}
+
+reg.max.Cora <- Cora.short[, .(reg.slope = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")))$coeff, p.val = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")))$p.val, number.max = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")))$nber.max), by = c("Condition", "Label")]
+```
+
+We expect 12 maxima for P5, 6 for P10 and 3 for P20; first check if it is the case, otherwise the detected maxima do correspond to noise. For P1, every number is a maxima since we capture only 1 point per oscillation.
+
+```{r}
+ggplot(reg.max.Cora, aes(x=Condition, y = number.max)) + geom_boxplot()
+```
+
+Some errors remain in the code, to check. Generally one maxima is missing.
+
+```{r fig.width=12}
+ggplot(reg.max.Cora, aes(x=Condition, y=reg.slope)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("Slope coefficients after linear fitting of the local maxima") + scale_y_continuous(limits = c(-0.25,0.25))
+```
+
 
 ## Envelope analysis
 
-### Local maxima detection
-
-```{r eval=F}
-which(diff(sign(diff(traj)))==-2)+1
-
-or 
-
-
-x <- c(1, 2, 3, 2, 1, 1, 2, 1)
-library(zoo)
- xz <- as.zoo(x)
- rollapply(xz, 3, function(x) which.min(x)==2)
-```
-
-With the second one, can give a minimum separation between two maxima.
+See matlab "spline" envelope extraction.
 
 ### Spline between maxima
 
