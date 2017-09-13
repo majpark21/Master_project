@@ -434,7 +434,7 @@ Cora.short[, pulse.freq := as.numeric(str_extract(Condition, "[0-9]+"))]
 amp.variation.season.Cora <- Cora.short[, .(mean.remainder = wrap_amplitude_variation(Ratio.norm, pulse.freq), RealTime), by = c("Condition", "Label")]
 ```
 
-```{r}
+```{r fig.width=12}
 ggplot(amp.variation.season.Cora, aes(x=Condition, y =mean.remainder)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("Mean remainder after time series decomposition")
 ```
 
@@ -467,7 +467,7 @@ We see that the first peak concentrates most of the remainders, this is to be ex
 
 To simplify a bit the interpretation and get relevant statistics out of it, we consider only remainders of 5% or more and use absolute values.
 
-```{r}
+```{r fig.width=12}
 temp <- Cora.short[, .(remainder = wrap_amplitude_variation(Ratio.norm, pulse.freq), RealTime), by = c("Condition", "Label")]
 temp <- temp[remainder > 0.05 | remainder < 0.05]
 temp[, remainder := abs(remainder)]
@@ -481,7 +481,7 @@ Same conclusions are coming here, except that this metric seems more convenient 
 
 # Detect cyclic pattern - Autocorrelation - Height of spectrum power peak at pulse frequency
 
-Spectral density (which composes the power spectrum) is equivalent to autocorrelation in frequency space; the same way as coherence is equivalent to cross-correlation.
+Power spectral density (which composes the power spectrum) is equivalent to autocorrelation in frequency space; the same way as coherence is equivalent to cross-correlation (see last part).
 
 Number of pulse time to get max autocorrelation? For this analysis we will harshly trim the time series to keep only the oscillatory parts.
 
@@ -697,6 +697,93 @@ Try further:
 * Statistics for the ratio, significantly different from 1?
 * To get closer to power spectrum analysis, instead of computing the ratio of 1st and 2nd harmonics only, could take one by one all harmonics and divide by the next one, get a mean ratio out of that? Could similarly be extended to harmonics 3...
 
+
+## Power spectrum analysis
+
+### Definitions: Fourier transform, energy spectral density, power...
+
+From wikipedia (https://en.wikipedia.org/wiki/Spectral_density#Cross-spectral_density ) and (http://www.groupes.polymtl.ca/ele2700/docs/Chap12-CorinthBookDraft-final2.pdf ), what follows is a custom attempt to clairfy these with discrete cases. Imagine we have a signal $x(t)$ measured between time 0 and T.
+
+* Fourier transform:
+
+Transform a signal in the spatial space to the frequential one. To do so, consider that the signal (a,b,c,d) as the sum of 4 peak signals: (a,0,0,0), (0,b,0,0), (0,0,c,0) and (0,0,0,d). Each of these peaks is "easily" expressed as a sum of 4 sinusoids (complex numbers defined by a modulus and an argument), each sinusoid being defined at a diffent frequency: 0Hz, 1Hz, 2Hz and 3Hz. We get the Fourier coefficient at 0Hz of our signal by summing the 4 0Hz - sinusoids defined in the peak signals. 
+
+$|\hat x(f)| = \sum_{t=0}^T x_t \cdot e^{-\frac{i2\pi ft}{T}}$ 
+
+$|\hat x(f)|$ is the Fourier coefficient of our signal at frequency 0Hz, each term in the sum represents the 0Hz sinusoid coming from each of the peak signal.x
+
+* Energy of a signal:
+
+$E = \sum_{t=0}^{T} |x(t)|^2 = \sum_{f=0}^{F}|\hat x(t)|^2$ where $|\hat x(f)|$ is the modulus of the Fourier coefficient at frequency f.
+
+* Energy spectral density:
+
+$S_{xx}(f) = |\hat x(f)|^2$ if integrated (i.e. summed) over all frequencies this density gives the total energy carried by the signal up to a factor $2 \pi$.
+
+The physics analogy is that if a potential $x(t)$ (in V) is applied to a 1 Ohm resistor, then it transmits this energy to the resistor.
+
+* Power spectral density:
+
+Remember that a power is the quantity of energy transmitted per unit of time (W = J/s). In this case, it is then the quantity of energy transmitted by a periodic signal $x(t)$ (as defined above) per period:
+
+$P_{xx}(f) = \frac{1}{T}|\hat x(f)|^2$
+
+The trick with real signal, which can never be completely periodic, is that you can make it periodic by creating a longer signal which is a concatenation of the original signal. Therefore the signal becomes periodic with period T, i.e. the number of measurements. This can be seen as an average (aka expectation) of the Fourier coefficient multiplied by himself. We can thus see this power spectral density as the Fourier transform of the autocorrelation function
+
+The power of a signal can be obtained by a few operations on the Fourier's coefficient. How to get power spectrum from fourier transform:
+
+```{r}
+traj <- Cora.short[.("P10-I100", "2_1"), Ratio.norm]
+traj <- traj[-length(traj)]
+plot(traj, type = 'l')
+
+N <- length(traj)
+dft <- fft(traj)
+psd <- (1/(2*pi*N)) * (abs(dft)^2)
+
+par(mfrow=c(1,2))
+plot(seq_along(psd)/length(traj), log10(psd), type='l')
+spectrum(traj)
+```
+
+The frequencies are normalized by the length of the observations vector.
+
+The periodogram is symmetric, since it considers the signal as "symmetric" thus only frequencies from 0 to 0.5 and required to get all info:
+
+```{r}
+par(mfrow=c(1,2))
+plot(seq_along(psd[1:(1+length(psd)/2)])/length(traj), log10(psd[1:(1+length(psd)/2)]), type='l')
+spectrum(traj)
+```
+
+There is still some deviations in the values, probably coming from the exact definition of power (the definition given right above is kind of an approximation), but the trends are conserved. The first large value is the DC component which is probably trimmed by the function `spectrum`. We can compare these spectra to the Fourier coefficients modulus:
+
+```{r}
+plot((seq_along(dft)-1)/length(traj), Mod(dft), type = 'h', xlab = "Frequency")
+axis(1, at = seq(0,1,0.1))
+```
+
+We observe a major peak at 0.1 (resp. 0.9) Hz, what corresponds to the pulse frequency. A smaller peak at second harmonics 0.2 is observed.
+
+Try to obtain the power spectrum using the autocorrelation definition:
+```{r}
+traj.doubled <- c(traj, traj)
+autocorr <- acf(traj.doubled, lag.max = 60)
+
+dft.auto <- fft(autocorr$acf[,,1])
+
+par(mfrow=c(1,2))
+plot((seq_along(dft.auto)-1)/length(traj), log(Mod(dft.auto)), type='l', xlim = c(0,0.5))
+spectrum(traj)
+```
+
+Again problem of scale, but trends are still identical. How is autocorrelation precisely defined? Shall we double the signal first?
+
+
+* Cross-spectral density (aka Coherence):
+
+This is actually the same as the power spectral density, except that instead of just giving the energy provided by $x(t)$, we characterize how well it is transmitted to another signal $y(t)$ (still in W=J/s). The cross-spectral density is thus the Fourier transform of the cross-correlation function.
+
 ------
 
 # Extract global features
@@ -734,7 +821,7 @@ abline(v = which(detect.minima(x, 7)), col = 'blue', lty = 'dashed')
 
 Easily modified to have a minimal span between 2 maxima/minima.
 
-## Long trend linear regression
+## Linear Regression of the trend
 
 We can use the trend of time series decomposition for this, remember that it is simply a moving average that is extended by linear interpolation. In other words, this is a linear regression of deseasonalized data.
 
@@ -770,62 +857,106 @@ ggplot(reg.p.val.Cora, aes(x=Condition, y=log(p.val))) + geom_boxplot(aes(fill=s
 
 The lower the value, the most significantly different from 0 the associated slope is. So most conditions P10 and P20 have a small  slope nevertheless significantly different from 0.
 
-## Long trend robust linear regression
-
-Can try robust fitting (maybe on non-deseasonalized data?):
-
-```{r eval = F}
-library(mblm)
-reg.robust.Cora <- mblm()
-```
-
-```{r eval = F}
-x <- Cora.short[.("P10-I50", "4_10"), Ratio.norm]
-time <- unique(Cora.short$RealTime)
-plot(x, type = "l")
-abline(lm(x~time), col ='red')
-abline(mblm(x~time), col = 'blue')
-abline(mblm(x~time, repeated = F), col = 'green')
-```
 
 ## Linear regression of maxima
 
-```{r warning=F}
-wrap_max_reg <- function(traj, window.size){
+An example first:
+```{r}
+library(mblm)
+traj <- Cora.short[.("P10-I100", "2_1"), Ratio.norm]
+
+max.pos <- which(detect.maxima(traj, 9))
+max.traj <- traj[max.pos]
+max.fit <- lm(max.traj ~ max.pos)
+max.fit.robust <- mblm(max.traj ~ max.pos)
+
+min.pos <- which(detect.minima(traj, 9))
+min.traj <- traj[min.pos]
+min.fit <- lm(min.traj ~ min.pos)
+min.fit.robust <- mblm(min.traj ~ min.pos)
+
+plot(traj, type = 'l')
+points(x=max.pos, y=max.traj, col = 'red', pch = 20, cex = 2)
+points(x=min.pos, y=min.traj, col = 'yellow', pch = 20, cex = 2)
+abline(max.fit, col = "blue")
+abline(max.fit.robust, col = "blue", lty = "dashed")
+abline(min.fit, col = "green")
+abline(min.fit.robust, col = "green", lty = "dashed")
+```
+
+The robust method for linear fitting is less influenced by outliers as can be seen with the last maximum point, which is taken quite far away from the blue dashed line. The method relies on median estimation of the regression parameters, by opposition to the classical least-square method.
+
+We define a function that extracts the maxima located in a time window limited by [min.index, max.index], perform a liner regression on this and returns the slope coefficient along with its p-value. In addition, robust linear fitting can be performed.
+
+```{r}
+wrap_max_reg <- function(traj, window.size, min.index, max.index, robust = F){
+  # min.index, max.index delimits the region of interest where we are looking for maxima
+  
+  # 0) Adjust window size to an odd number
   if(window.size == 10){window.size <- 9}
   else if(window.size == 20){window.size <- 19}
-  max.traj <- detect.maxima(traj, window.size)
-
-  # If no maxima detected, run simple linear regression
-  nber <- length(which(max.traj))
-  max.traj <- traj[which(max.traj)]
-  fit <- try(lm(max.traj ~ seq_along(max.traj)))
-  if(class(fit)== "try-error"){
-    nber <- numeric(0)
-    fit <- lm(traj ~ seq_along(traj))
-  }
   
+  # 1) Where are the maxima
+  max.pos <- which(detect.maxima(traj, window.size))
+  # Keep only maxima occuring at time > min.index
+  max.pos <- max.pos[max.pos >= min.index & max.pos <= max.index]
+  nber <- length(max.pos)
+  max.traj <- traj[max.pos]
+  
+  # 2) Perform the fitting
+  # If no maxima detected, run simple linear regression, not only on maxima (not robust as this results in an error)
+  if(robust){
+    require(mblm)
+    fit <- try(mblm(max.traj ~ max.pos))
+    if(class(fit)== "try-error"){
+      nber <- numeric(0)
+      fit <- lm(traj ~ seq_along(traj))
+    }
+    p.val <- try(coef(summary(fit))[2, "Pr(>|V|)"])
+  } else {
+    fit <- try(lm(max.traj ~ max.pos))
+    if(class(fit)== "try-error"){
+      nber <- numeric(0)
+      fit <- lm(traj ~ seq_along(traj))
+    }
+    p.val <- try(coef(summary(fit))[2, "Pr(>|t|)"])
+  }
+
   # p-values not return for regression performed on small vectors
-  p.val <- try(coef(summary(fit))[2, "Pr(>|t|)"])
   if(class(p.val) == "try-error") p.val <- 2
+  
   return(list(coeff = fit$coefficients[2], p.val = p.val, nber.max = nber))
 }
+```
 
-reg.max.Cora <- Cora.short[, .(reg.slope = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")))$coeff, p.val = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")))$p.val, number.max = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")))$nber.max), by = c("Condition", "Label")]
+We first run in a non-robust fashion:
+
+```{r warning=F, cache=T}
+reg.max.Cora <- Cora[, .(reg.slope = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")), 10, 70)$coeff, p.val = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")), 10, 70)$p.val, number.max = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")), 10, 70)$nber.max), by = c("Condition", "Label")]
 ```
 
 We expect 12 maxima for P5, 6 for P10 and 3 for P20; first check if it is the case, otherwise the detected maxima do correspond to noise. For P1, every number is a maxima since we capture only 1 point per oscillation.
 
-```{r}
-ggplot(reg.max.Cora, aes(x=Condition, y = number.max)) + geom_boxplot()
+```{r cache=T}
+ggplot(reg.max.Cora[!Condition %in% c("P1-I10", "P1-I25", "P1-I50", "P1-I100", "P1-I100-UO")], aes(x=Condition, y = number.max)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("Number of maxima detected")
 ```
 
-Some errors remain in the code, to check. Generally one maxima is missing.
+We see that there are some false positives in maxima detection, but at least these are limited to the oscillation time span. The slopes are given by:
 
-```{r fig.width=12}
-ggplot(reg.max.Cora, aes(x=Condition, y=reg.slope)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("Slope coefficients after linear fitting of the local maxima") + scale_y_continuous(limits = c(-0.25,0.25))
+```{r fig.width=12, cache=T}
+ggplot(reg.max.Cora, aes(x=Condition, y=reg.slope)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("Slope coefficients after linear fitting of the local maxima") 
 ```
 
+And the robust version:
+```{r warning=F, echo =F, cache=T}
+reg.max.Cora <- Cora[, .(reg.slope = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")), 10, 70, robust = T)$coeff, p.val = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")), 10, 70, robust = T)$p.val, number.max = wrap_max_reg(Ratio.norm, as.numeric(str_extract(Condition, "[0-9]+")), 10, 70, robust = T)$nber.max), by = c("Condition", "Label")]
+```
+
+```{r fig.width=12, echo =F, cache=T}
+ggplot(reg.max.Cora, aes(x=Condition, y=reg.slope)) + geom_boxplot(aes(fill=str_extract(Condition, "[0-9]+"))) + theme(legend.position="top") + ggtitle("Slope coefficients after ROBUST linear fitting of the local maxima") 
+```
+
+There are mainly two differences betwenn the robust and least-square methods. First, the P1 conditions get shifted to clearly negative slopes, as we would expect them to be. Second, the P5-I25 and P10-I25 are shifted to smaller slopes, this probably due to the fact that these have the relatively largest first peak. Thus the robust method kind of consider the first peak as an outlier and is not as affected as the least-square method is.
 
 ## Envelope analysis
 
