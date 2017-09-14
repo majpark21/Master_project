@@ -1,0 +1,120 @@
+---
+title: "Cora dataset single pulse"
+author: "Jacques Marc-Antoine"
+date: "14 septembre 2017"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Experiment and Aim
+
+The experiment is a dose response matrix, which measures ERK activity as a function of duration and intensity of light stimulus.
+
+For convenience we define the following code to represent the treatment conditions: “PXX-IYY”; where X represents the duration of the pulse and I its intensity.
+
+The main goal here is simply to fit exponential decay and/or to extract features from these simple trajectories (single peak).
+
+One condition, P0.1-I0, was forgotten when the experiment was run, we introduce artificial data to replace it. Data are normalized in a fold-change per trajectory fashion, basal time span is defined right before the stimulus, which was performed at time 10.
+
+```{r}
+source("../rscripts/package.R")
+rm(Cora)
+source("../rscripts/merge_load_singlepulse_data.R")
+```
+
+```{r cache=T, fig.width=21, fig.height=12}
+ggplot(Cora, aes(x= RealTime, y=Ratio.norm)) + geom_line(aes(group=Label), alpha=0.4) + facet_wrap("Condition", nrow = 5) + stat_summary(fun.y = mean, geom = "line", col = "red", lwd=1.75) + theme(text = element_text(size= 25)) + ggtitle("Per-trajectory normalized, fold change based on time [0, 9]")
+```
+
+As we will be interested only in fitting the peaks, we cut the data between time 10 and 25:
+```{r}
+Cora <- Cora[RealTime >= 10 & RealTime <= 25]
+```
+
+```{r cache=T, fig.width=21, fig.height=12}
+ggplot(Cora, aes(x= RealTime, y=Ratio.norm)) + geom_line(aes(group=Label), alpha=0.4) + facet_wrap("Condition", nrow = 5) + stat_summary(fun.y = mean, geom = "line", col = "red", lwd=1.75) + theme(text = element_text(size= 25)) + ggtitle("Per-trajectory normalized, fold change based on time [0, 9]")
+```
+
+Finally, when estimating the parameters, it will be useful to have a baseline at 0 and not 1, so we shift all the curves by 1, and clip negative values to 0:
+```{r}
+Cora[, Ratio.norm := Ratio.norm - 1]
+Cora[Ratio.norm < 0, Ratio.norm := 0]
+```
+
+```{r cache=T, fig.width=21, fig.height=12}
+ggplot(Cora, aes(x= RealTime, y=Ratio.norm)) + geom_line(aes(group=Label), alpha=0.4) + facet_wrap("Condition", nrow = 5) + stat_summary(fun.y = mean, geom = "line", col = "red", lwd=1.75) + theme(text = element_text(size= 25)) + ggtitle("Per-trajectory normalized, fold change based on time [0, 9]")
+```
+
+# Maximum peak
+
+```{r}
+max.peak.Cora <- Cora[, .(max = max(Ratio.norm), time.max = RealTime[which.max(Ratio.norm)]), by = c("Condition", "Label")]
+max.peak.Cora[, pulse.length := str_extract(max.peak.Cora$Condition, "[0-9]+(\\.[0-9]+)?")]
+```
+
+```{r fig.width=15, fig.height=10}
+ggplot(max.peak.Cora, aes(x=Condition, y=time.max)) + geom_boxplot(aes(fill=pulse.length)) + ggtitle("Time at which peak reaches its maximum")  + theme(legend.position="top", text = element_text(size = 20)) + facet_wrap("pulse.length", nrow = 3, scales = "free_x")
+```
+
+This time is fairly robust in every condition.
+
+```{r fig.width=15, fig.height=10}
+ggplot(max.peak.Cora, aes(x=Condition, y=max)) + geom_boxplot(aes(fill=pulse.length)) + ggtitle("Maximum peak (fold change)")  + theme(legend.position="top", text = element_text(size = 20)) + facet_wrap("pulse.length", nrow = 3, scales = "free_x")
+```
+
+Increase with light intensity for short pulse P0.05 and P1; stable for the others whatever the light intensity.
+
+# Full width at half maximum
+
+There is a very few points in the ascending phase, so need to extrapolate for left phase.
+
+```{r}
+get.FWHM <- function(x){
+  max.val <- which.max(x)
+  left <- x[x < max.val] [which.min(abs(x - (max.val/2)))]
+  right <- x[x < max.val] [which.min(abs(x - (max.val/2)))]
+  return(left)
+}
+```
+
+
+
+
+# Decay rate and Half-life time
+
+## The exponential decay model
+
+* The exponential decay model:
+
+$\frac{dN}{dt} = -\lambda t$
+
+which can be anatycally solved:
+
+$N(t) =  N_0 \cdot e^{-\lambda t}$ 
+
+* It can be linearized by applying a log: 
+
+$log(N(t)) = log(N_0) - \lambda t$
+
+This linearization means that we can fit the model with a simple linear regression, where the decay constant $\lambda$ becomes the slope.
+
+* Half-Life
+
+$T_{1/2} = \frac{ln2}{\lambda}$
+
+## With linear transformation
+
+
+## Non-linear fitting
+
+
+# Growth rate 
+
+## Linear regression
+
