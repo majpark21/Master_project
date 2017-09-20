@@ -34,6 +34,7 @@ ggplot(Cora, aes(x= RealTime, y=Ratio.norm)) + geom_line(aes(group=Label), alpha
 
 As we will be interested only in fitting the peaks, we cut the data between time 10 and 25:
 ```{r}
+Cora.cp <- copy(Cora) # copy that will be used to keep full data
 Cora <- Cora[RealTime >= 10 & RealTime <= 25]
 ```
 
@@ -147,7 +148,7 @@ abline(v = c(fwhm$left, fwhm$right), lty = "dashed", col = "darkgreen")
 text(x = 17, y = 0.15, labels = round(fwhm$fwhm,4))
 ```
 
-Wrong peak is returned, this shows some instability in the method since with more points:
+Wrong peak is returned, this shows some instability in the method since with more points we get the right value:
 ```{r echo =F}
 fit <- spline(x, y, 30*length(x))
 fwhm <- get.FWHM(x, y, n = 30*length(x))
@@ -185,38 +186,178 @@ Another method is to sequentially walk through the interpolated points and to ch
 
 This method enables to solve the multi-peak as well as the non-crossing problems highlighted in the previous section.
 
-We redefine the function and add 
+
+First we define a spline function which returns both the interpolated points and the data in a single trajectory:
 ```{r}
-get.FWHM <- function(x, y, n = 10*length(x), method = "walk"){
-  if(!method %in% c("walk", "minimum")) stop("Method must be one of c('walk','minimum')")
-  if(method == "walk"){
-    
-  } else if(method == "minimum"){
-    maxi <- max(y)
-    tmaxi <- x[which.max(y)]
-    fit <- spline(x, y, n)
-    left <- fit$x[which.min(abs(fit$y[fit$x < tmaxi] - (maxi/2)))]
-    right <- fit$x[which.max(which(fit$x <= tmaxi)) + which.min(abs(fit$y[fit$x > tmaxi] - (maxi/2)))]
-    return(list(fwhm = right - left, left = left, right = right))
-  }
+mySpline <- function(x, y , n){
+  fit <- spline(x, y, n)
+  x2 <- c(x, fit$x)
+  y2 <- c(y, fit$y)
+  y2 <- y2[order(x2)]
+  x2 <- x2[order(x2)]
+  return(list(x = x2, y = y2))
 }
 ```
 
+We redefine the function with this new spline function, add a method argument. Method "minimum" corresponds to the previous implementation:
+```{r}
+get.FWHM <- function(x, y, n = 30*length(x), method = "walk"){
+  if(!method %in% c("walk", "minimum")) stop("Method must be one of c('walk','minimum')")
+  
+  # Do NOT use interpolated data as maximum estimation
+  maxi <- max(y)
+  tmaxi <- x[which.max(y)]
+  # Spline interpolated and data
+  fit <- mySpline(x, y, n)
+  
+  if(method == "walk"){
+    thresh <- maxi/2
+    start <- which(fit$x == tmaxi)[1]
+    # Right walk
+    right <- NA
+    for(i in start:length(fit$x)){
+      if(fit$y[i] < thresh){
+        # Once threshold is passed, choose the value between i and i-1 that is the closest to it
+        right <- ifelse(abs(thresh - fit$y[i-1]) < abs(thresh - fit$y[i]), fit$x[i-1], fit$x[i])
+        break
+      }
+    }
+    # Left walk
+    left <- NA
+    for(i in seq(start, 1, -1)){
+      if(fit$y[i] < thresh){
+        left <- ifelse(abs(thresh - fit$y[i+1]) < abs(thresh - fit$y[i]), fit$x[i+1], fit$x[i])
+        break
+      }
+    }
+    
+  } else if(method == "minimum"){
+    left <- fit$x[which.min(abs(fit$y[fit$x < tmaxi] - (maxi/2)))]
+    right <- fit$x[which.max(which(fit$x <= tmaxi)) + which.min(abs(fit$y[fit$x > tmaxi] - (maxi/2)))]
+  }
+  
+  return(list(fwhm = right - left, left = left, right = right))
+}
+```
 
+On the previous example with the new method:
+```{r}
+y <- Cora[.("P5-I100","11_9"), Ratio.norm]
+x <- Cora[.("P5-I100","11_9"), RealTime]
+fit <- mySpline(x, y, 2*length(x))
+fwhm.mini <- get.FWHM(x, y, n = 2*length(x), method = "minimum")
+fwhm.walk <- get.FWHM(x, y, n = 2*length(x), method = "walk")
 
+par(mfrow= c(1,2))
+plot(x, y, pch = 20, cex = 2, main = "Minimum method")
+lines(fit, col = 'red', lty = "dashed")
+points(fit, col = 'red', pch = 3)
+abline(h = max(y)/2, lty = "dotted", col = "blue")
+abline(v = c(fwhm.mini$left, fwhm.mini$right), lty = "dashed", col = "darkgreen")
+text(x = 16, y = 0.2, labels = round(fwhm.mini$fwhm,4))
+
+plot(x, y, pch = 20, cex = 2, main = "Walk method")
+lines(fit, col = 'red', lty = "dashed")
+points(fit, col = 'red', pch = 3)
+abline(h = max(y)/2, lty = "dotted", col = "blue")
+abline(v = c(fwhm.walk$left, fwhm.walk$right), lty = "dashed", col = "darkgreen")
+text(x = 16, y = 0.2, labels = round(fwhm.walk$fwhm,4))
+```
+
+Identical result. Let's move to the problematic cases:
+```{r}
+y <- Cora[.("P0.05-I25","6_1"), Ratio.norm]
+x <- Cora[.("P0.05-I25","6_1"), RealTime]
+```
+
+```{r echo = FALSE}
+fit <- mySpline(x, y, 2*length(x))
+fwhm.mini <- get.FWHM(x, y, n = 3*length(x), method = "minimum")
+fwhm.walk <- get.FWHM(x, y, n = 3*length(x), method = "walk")
+
+par(mfrow= c(1,2))
+plot(x, y, pch = 20, cex = 2, main = "Minimum method")
+lines(fit, col = 'red', lty = "dashed")
+points(fit, col = 'red', pch = 3)
+abline(h = max(y)/2, lty = "dotted", col = "blue")
+abline(v = c(fwhm.mini$left, fwhm.mini$right), lty = "dashed", col = "darkgreen")
+text(x = 16, y = 0.2, labels = round(fwhm.mini$fwhm,4))
+
+plot(x, y, pch = 20, cex = 2, main = "Walk method")
+lines(fit, col = 'red', lty = "dashed")
+points(fit, col = 'red', pch = 3)
+abline(h = max(y)/2, lty = "dotted", col = "blue")
+abline(v = c(fwhm.walk$left, fwhm.walk$right), lty = "dashed", col = "darkgreen")
+text(x = 16, y = 0.2, labels = round(fwhm.walk$fwhm,4))
+```
+
+```{r}
+y <- Cora[.("P0.05-I0","0_7"), Ratio.norm]
+x <- Cora[.("P0.05-I0","0_7"), RealTime]
+```
+
+```{r echo = FALSE}
+fit <- mySpline(x, y, 2*length(x))
+fwhm.mini <- get.FWHM(x, y, n = 3*length(x), method = "minimum")
+fwhm.walk <- get.FWHM(x, y, n = 3*length(x), method = "walk")
+
+par(mfrow= c(1,2))
+plot(x, y, pch = 20, cex = 2, main = "Minimum method")
+lines(fit, col = 'red', lty = "dashed")
+points(fit, col = 'red', pch = 3)
+abline(h = max(y)/2, lty = "dotted", col = "blue")
+abline(v = c(fwhm.mini$left, fwhm.mini$right), lty = "dashed", col = "darkgreen")
+text(x = 16, y = 0.02, labels = round(fwhm.mini$fwhm,4))
+
+plot(x, y, pch = 20, cex = 2, main = "Walk method")
+lines(fit, col = 'red', lty = "dashed")
+points(fit, col = 'red', pch = 3)
+abline(h = max(y)/2, lty = "dotted", col = "blue")
+abline(v = c(fwhm.walk$left, fwhm.walk$right), lty = "dashed", col = "darkgreen")
+text(x = 16, y = 0.02, labels = round(fwhm.walk$fwhm,4))
+```
+
+The walk method correctly identifies the left border and does not return a right border since the curve never crosses the half maximum-value anymore.
 
 ## Results
 
 ```{r}
-fwhm.Cora <- Cora[, .(fwhm = )]
+fwhm.Cora <- Cora[, .(fwhm = as.numeric(get.FWHM(x=RealTime, y=Ratio.norm)$fwhm)), by = c("Condition", "Label")]
+```
+
+```{r, fig.width=15, fig.height=10}
+fwhm.Cora[, pulse.length := str_extract(Condition, "[0-9]+(\\.[0-9]+)?")]
+ggplot(fwhm.Cora, aes(x=Condition, y=fwhm)) + geom_boxplot(aes(fill=pulse.length)) + ggtitle("FWHM estimated by walk")  + theme(legend.position="top", text = element_text(size = 20)) + facet_wrap("pulse.length", nrow = 3, scales = "free_x")
+```
+
+# Peakedness
+
+Easy and natural measure is simply the ratio of maximum of peak divided by FWHM.
+```{r}
+peaked.Cora <- merge(fwhm.Cora, max.peak.Cora, by = c("Condition", "Label", "pulse.length"))
+peaked.Cora[, peakedness := max / fwhm]
+```
+
+```{r fig.width=15, fig.height=10}
+ggplot(peaked.Cora, aes(x=Condition, y=peakedness)) + geom_boxplot(aes(fill=pulse.length)) + ggtitle("Peakedness: max / FWHM")  + theme(legend.position="top", text = element_text(size = 20)) + facet_wrap("pulse.length", nrow = 3, scales = "free_x")
 ```
 
 
+# Decay rate
 
+We will isolate the descending part of the signal, which is simply defined at times after maxima was reached. In addition, values at zero are slightly shifted to positive values to avoid error when applying logarithm.
+```{r}
+desc.Cora <- merge(Cora, max.peak.Cora[,c("Condition", "Label", "max", "time.max")], by = c("Condition", "Label"))
+desc.Cora <- desc.Cora[RealTime >= time.max]
+desc.Cora[, time.after.max := seq_along(Ratio.norm)-1, by = c("Condition", "Label")]
 
-# Decay rate and Half-life time
+desc.Cora[Ratio.norm==0, Ratio.norm := Ratio.norm + 0.01]
+desc.Cora[max==0, max:= max + 0.01]
+```
 
-## The exponential decay model
+## Modelling with an exponential decay after peak maximum
+
+### The exponential decay model
 
 * The exponential decay model:
 
@@ -236,14 +377,165 @@ This linearization means that we can fit the model with a simple linear regressi
 
 $T_{1/2} = \frac{ln2}{\lambda}$
 
-## With linear transformation
 
+### Results
 
-## Non-linear fitting
+We first subtract the intercept (i.e. log(max_value)), then fit a linear model without intercept and extract the slope which gives us the decay rate $\lambda$.
 
+```{r}
+desc.Cora[, log.Ratio := log(Ratio.norm) - log(max)]
+decay.Cora <- desc.Cora[, .(slope = coef(lm(log.Ratio ~ time.after.max + 0))[1]), by = c("Condition", "Label")]
+```
+
+On one example:
+```{r}
+y <- Cora[.("P5-I100","11_9"), Ratio.norm]
+# Shift to prevent error when log
+y[which(y==0)] <- y[which(y==0)] + 0.01
+# Descending phase (max is in position 5)
+y.desc <- y[5:length(y)]
+# Linearize by log, remove the max value
+y.log <- log(y.desc) - log(y.desc[1])
+
+par(mfrow=c(1,3))
+plot(y, type = "b", main = "Whole trajectory")
+plot(y.desc, type = "b", main = "Descending phase")
+abline(lm(y.desc ~ seq_along(y.desc)), col = "blue", lty = "dashed")
+plot(y.log, type = "b", main = "Log descending")
+abline(lm(y.log ~ seq_along(y.log) + 0), col = "blue", lty = "dashed")
+```
+
+We see that the fit quality is quite poor and that directly fitting a linear model to the data could be even more appropriate. Though we've applied some clipping to negative normalized values in the beginning, what would happen without having them clipped?
+
+```{r}
+Cora2 <- copy(Cora.cp)
+Cora2 <- myNorm(in.dt = Cora2, in.meas.col = "Ratio", in.rt.min = 0, in.rt.max = 10, in.by.cols = c("Condition", "Label"), in.type = "fold.change")
+Cora2 <- Cora2[RealTime >= 10 & RealTime <= 25]
+```
+
+```{r echo = F}
+y <- Cora2[.("P5-I100","11_9"), Ratio.norm]
+# Shift to prevent error when log
+y[which(y==0)] <- y[which(y==0)] + 0.01
+# Descending phase (max is in position 5)
+y.desc <- y[5:length(y)]
+# Linearize by log, remove the max value
+y.log <- log(y.desc) - log(y.desc[1])
+
+par(mfrow=c(1,3))
+plot(y, type = "b", main = "Whole trajectory")
+plot(y.desc, type = "b", main = "Descending phase")
+abline(lm(y.desc ~ seq_along(y.desc)), col = "blue", lty = "dashed")
+plot(y.log, type = "b", main = "Log descending")
+abline(lm(y.log ~ seq_along(y.log) + 0), col = "blue", lty = "dashed")
+```
+
+Slightly better, what happens if we don't cut the tail of the decay?
+
+```{r}
+Cora2 <- copy(Cora.cp)
+Cora2 <- myNorm(in.dt = Cora2, in.meas.col = "Ratio", in.rt.min = 0, in.rt.max = 10, in.by.cols = c("Condition", "Label"), in.type = "fold.change")
+Cora2 <- Cora2[RealTime >= 10]
+```
+
+```{r echo = F}
+y <- Cora2[.("P5-I100","11_9"), Ratio.norm]
+# Shift to prevent error when log
+y[which(y==0)] <- y[which(y==0)] + 0.01
+# Descending phase (max is in position 5)
+y.desc <- y[5:length(y)]
+# Linearize by log, remove the max value
+y.log <- log(y.desc) - log(y.desc[1])
+
+par(mfrow=c(1,3))
+plot(y, type = "b", main = "Whole trajectory")
+plot(y.desc, type = "b", main = "Descending phase")
+abline(lm(y.desc ~ seq_along(y.desc)), col = "blue", lty = "dashed")
+plot(y.log, type = "b", main = "Log descending")
+abline(lm(y.log ~ seq_along(y.log) + 0), col = "blue", lty = "dashed")
+```
+
+No real improvement, let's keep the regression on clipped and trimmed data.
+
+```{r fig.width=15, fig.height=10}
+decay.Cora[, pulse.length := str_extract(Condition, "[0-9]+(\\.[0-9]+)?")]
+ggplot(decay.Cora, aes(x=Condition, y=slope)) + geom_boxplot(aes(fill=pulse.length)) + ggtitle("Decay rate estimated by exponential decay linear fitting")  + theme(legend.position="top", text = element_text(size = 20)) + facet_wrap("pulse.length", nrow = 3, scales = "free_x") + scale_y_continuous(limits = c(-0.75,0.3))
+```
+
+This behaves like the peakedness distribution though the relevance of the exponential decay is doubtful. In addition the distribution look very skewed, overall the method do not appear very reliable. Flat profiles at P0.05-I0 and P0.05-I5 have clearly negative slopes, what is far from what we see by looking at the curves.
+
+A reason could be that the peaks are usually plateauing before dropping, therefore the exponential model is probably not adapted.
+
+## Linear fitting between peak max and half-max
+
+We could try to simply get a couple of points after the peak maximum and fit a line on this. How to define this couple or points? Since the peaks tend to plateau, we will use the points between the maximum of the peak and the time at which it reaches half of its maximum. Note that we also force the regression to use the maximum of the peak as intercept.
+
+```{r}
+right.fwhm.Cora <- Cora[, .(right = as.numeric(get.FWHM(x=RealTime, y=Ratio.norm)$right)), by = c("Condition", "Label")]
+desc.Cora <- merge(Cora, right.fwhm.Cora)
+desc.Cora <- merge(desc.Cora, max.peak.Cora)
+desc.Cora <- desc.Cora[RealTime >= time.max & RealTime <= right]
+desc.Cora[, time.after.max := seq_along(Ratio.norm)-1, by = c("Condition", "Label")]
+desc.Cora[, Ratio.norm := Ratio.norm - max]
+
+decay.Cora <- desc.Cora[, .(slope = coef(lm(Ratio.norm ~ time.after.max + 0))[1]), by = c("Condition", "Label")]
+```
+
+```{r fig.width=15, fig.height=10}
+decay.Cora[, pulse.length := str_extract(Condition, "[0-9]+(\\.[0-9]+)?")]
+ggplot(decay.Cora, aes(x=Condition, y=slope)) + geom_boxplot(aes(fill=pulse.length)) + ggtitle("Decay rate estimated by linear fitting between maximum and half-maximum")  + theme(legend.position="top", text = element_text(size = 20)) + facet_wrap("pulse.length", nrow = 3, scales = "free_x") + scale_y_continuous(limits = c(-0.35,0.025))
+```
+
+Results appear more reliable: the dispersion is smaller, the distributions more centered, some distributions with ambiguous profile and not taken in account since not right border can be find for them. Flat profiles at P0.05-I0 and P0.05-I5 have a nearly 0 slope.
+
+This approach should be favored over the exponential fitting.
 
 # Growth rate 
 
-## Linear regression
+## Linear fitting from 2min after stimulus to peak maximum
 
+We will isolate the ascending part of the signal, which is simply defined at times before maxima was reached and 2 data point (i.e. 2min) after stimulation (usually 1 point after stimulation, signal tends to decrease).
 
+```{r}
+asc.Cora <- merge(Cora, max.peak.Cora[,c("Condition", "Label", "max", "time.max")], by = c("Condition", "Label"))
+asc.Cora <- asc.Cora[RealTime <= time.max & RealTime >= 12]
+```
+
+```{r}
+growth.Cora <- asc.Cora[, .(slope = coef(lm(Ratio.norm ~ RealTime + 0))[1]), by = c("Condition", "Label")]
+```
+
+On one example:
+```{r}
+y <- Cora[.("P5-I100","11_9"), Ratio.norm]
+# Ascending phase (max is in position 5)
+y.asc <- y[3:5]
+
+par(mfrow=c(1,2))
+plot(y, type = "b", main = "Whole trajectory")
+plot(y.asc, type = "b", main = "Ascending phase")
+abline(lm(y.asc ~ seq_along(y.asc)), col = "blue", lty = "dashed")
+```
+
+```{r fig.width=15, fig.height=10}
+growth.Cora[, pulse.length := str_extract(Condition, "[0-9]+(\\.[0-9]+)?")]
+ggplot(growth.Cora, aes(x=Condition, y=slope)) + geom_boxplot(aes(fill=pulse.length)) + ggtitle("Growth rate estimated by linear fitting between 2min after stimulus and peak maximum")  + theme(legend.position="top", text = element_text(size = 20)) + facet_wrap("pulse.length", nrow = 3, scales = "free_x")
+```
+
+## Linear fitting from half maximum to maximum
+
+```{r}
+left.fwhm.Cora <- Cora[, .(left = as.numeric(get.FWHM(x=RealTime, y=Ratio.norm)$left)), by = c("Condition", "Label")]
+asc.Cora <- merge(Cora, left.fwhm.Cora)
+asc.Cora <- merge(asc.Cora, max.peak.Cora)
+asc.Cora <- asc.Cora[RealTime <= time.max & RealTime >= left]
+
+growth.Cora <- asc.Cora[, .(slope = coef(lm(Ratio.norm ~ RealTime))[2]), by = c("Condition", "Label")]
+```
+
+```{r fig.width=15, fig.height=10}
+growth.Cora[, pulse.length := str_extract(Condition, "[0-9]+(\\.[0-9]+)?")]
+ggplot(growth.Cora, aes(x=Condition, y=slope)) + geom_boxplot(aes(fill=pulse.length)) + ggtitle("Growth rate estimated by linear fitting between peak half-maximum and maximum")  + theme(legend.position="top", text = element_text(size = 20)) + facet_wrap("pulse.length", nrow = 3, scales = "free_x")
+```
+
+Values and variances appear larger than for the other fit, but remain consistent. Both method could be applied. The half-maximum method has the advantage to do not rely on a evaluated (or somewhat arbitrary choose of) lag after stimulation.
