@@ -539,3 +539,67 @@ ggplot(growth.Cora, aes(x=Condition, y=slope)) + geom_boxplot(aes(fill=pulse.len
 ```
 
 Values and variances appear larger than for the other fit, but remain consistent. Both method could be applied. The half-maximum method has the advantage to do not rely on a evaluated (or somewhat arbitrary choose of) lag after stimulation.
+
+
+# Using the wrapper
+
+All methods used right above have been grouped in the script "single_peak_features.R". Be careful though, as it hasn't be thoroughly tested yet, especially the growth and decay rate for sampling rate different of 1min.
+
+There will be some differences with the previous results for decay and growth rates using half-maximum, since the functions have been extended to also use the interpolated point at half maximum when performing the regressions.
+
+```{r}
+source("../rscripts/single_peak_features.R")
+```
+
+## On one example
+
+Every feature described above has its own function, a wrapper computing all features at once is provided by FeatAllFeat. In the following example we compare what happens with or without trimming of the time axis:
+```{r}
+Cora <- Cora.cp
+
+par(mfrow=c(1,2))
+traj <- Cora[.("P5-I25",  "6_15"), Ratio.norm]
+traj.trim <- Cora[Condition == "P5-I25" & Label == "6_15" & RealTime >= 10 & RealTime <= 25, Ratio.norm]
+
+plot(seq_along(traj),traj, type = "b") 
+lines(mySpline(seq_along(traj), traj, 30*length(traj))$x, mySpline(seq_along(traj), traj, 30*length(traj))$y, lty = "dashed", col = "red")
+traj.fwhm <- FeatFWHM(traj)
+abline(v=c(traj.fwhm$left, traj.fwhm$right), col = "blue", lty = "dashed")
+
+plot(seq_along(traj.trim),traj.trim, type = "b") 
+lines(mySpline(seq_along(traj.trim), traj.trim, 30*length(traj.trim))$x, mySpline(seq_along(traj.trim), traj.trim, 30*length(traj.trim))$y, lty = "dashed", col = "red")
+traj.fwhm <- FeatFWHM(traj.trim)
+abline(v=c(traj.fwhm$left, traj.fwhm$right), col = "blue", lty = "dashed")
+
+as.data.table(FeatAllFeat(y = traj, basal = 1, start.lag.grow = 3, end.exp.dec = 11))
+as.data.table(FeatAllFeat(y = traj.trim, basal = 1, start.lag.grow = 3, end.exp.dec = 11))
+```
+
+The feature outputs shows the clear advantage of the grow.half (resp. dec.half) over grow.lag (resp. dec.exp): they do not rely on the choice of hard time points. Clearly the time points here were chosen for the trimmed trajectory, that is why results somewhat random are found for the non-trimmed trajectory.
+
+Differences in FWHM and left/right are very small, and come from the fact that these values are estimated based on a spline interpolation.
+
+## On data
+
+Will use the trimmed data here:
+```{r cache = T}
+Cora <- Cora.cp
+Cora <- Cora[RealTime >= 10 & RealTime <= 25]
+
+# Manual initialization to avoid conflict when NA are raised
+all.feat.Cora <- unique(Cora[,c('Condition','Label')])
+all.feat.Cora[, c("max.amp", "time.max.amp", "FWHM", "left", "right", "grow.half", "grow.lag", "dec.half", "dec.exp") := numeric(nrow(all.feat.Cora))]
+
+for(k in 1:nrow(all.feat.Cora)){
+  for(j in 3:ncol(all.feat.Cora)){
+    features <- FeatAllFeat(Cora[Condition == all.feat.Cora[k, Condition] & Label == all.feat.Cora[k, Label], Ratio.norm], basal = 1, start.lag.grow = 3, end.exp.dec = 13)
+    all.feat.Cora[k, j] <- features[[j-2]]
+  }
+}
+all.feat.Cora[, pulse.length := str_extract(Condition, "[0-9]+(\\.[0-9]+)?")]
+
+# The code would normally be as simple as:
+#all.feat.Cora <- Cora[, c("max.amp", "time.max.amp", "FWHM", "left", "right", "grow.half", "grow.lag", "dec.half", "dec.exp") := FeatAllFeat(y = Ratio.norm, basal = 1, start.lag.grow = 3, end.exp.dec = 13), by = c("Condition", "Label")]
+```
+
+The wrapper returns almost the same results as the code above (at least by visual inspection and considering the slight changes in method). But the wrapper returns a very few large outliers when estimating the decay and growth rates (probably due to change of method), that are anyway easy to spot.

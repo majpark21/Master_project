@@ -68,6 +68,8 @@ FeatFWHM <- function(y, x = seq_along(y), n = 30*length(x), method = "walk", bas
     left <- fit$x[which.min(abs(fit$y[fit$x < tmaxi] - (maxi/2)))]
     right <- fit$x[which.max(which(fit$x <= tmaxi)) + which.min(abs(fit$y[fit$x > tmaxi] - (maxi/2)))]
   }
+  if(length(right) == 0){right <- NA; fwhm <- NA}
+  if(length(left) == 0){left <- NA; fwhm <- NA}
   return(list(fwhm = right - left, left = left, right = right))
 }
 
@@ -86,6 +88,8 @@ FeatFWHM <- function(y, x = seq_along(y), n = 30*length(x), method = "walk", bas
 FeatHalfMaxDec <- function(y, ...){
   # Enforces fit to pass through maximum
   right <- FeatFWHM(y = y, ...)$right
+  if(length(right) == 0) return(NA)
+  if(is.na(right)) return(NA)
   tmaxi <- which.max(y)
   # Use the point closest to half-max as additional point for regression (if it is interpolated then it is not an integer)
   if(right %% 1 !=0){
@@ -156,6 +160,8 @@ FeatLagGrow <- function(y, start){
 #' @examples
 FeatHalfMaxGrow <- function(y, ...){
   left <- FeatFWHM(y = y, ...)$left
+  if(length(left) == 0) return(NA)
+  if(is.na(left)) return(NA)
   tmaxi <- which.max(y)
   # Use the point closest to half-max as additional point for regression (if it is interpolated then it is not an integer)
   if(left %% 1 !=0){
