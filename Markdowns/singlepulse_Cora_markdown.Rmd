@@ -35,7 +35,7 @@ ggplot(Cora, aes(x= RealTime, y=Ratio.norm)) + geom_line(aes(group=Label), alpha
 As we will be interested only in fitting the peaks, we cut the data between time 10 and 25:
 ```{r}
 Cora.cp <- copy(Cora) # copy that will be used to keep full data
-Cora <- Cora[RealTime >= 10 & RealTime <= 25]
+Cora <- Cora[RealTime >= 10 & RealTime <= 25] 
 ```
 
 ```{r cache=T, fig.width=21, fig.height=12}

@@ -1,3 +1,12 @@
+FeatDiffMinMax <- function(y){
+  mini <- min(y)
+  maxi <- max(y)
+  tmini <- which.min(y)
+  tmaxi <- which.max(y)
+  return(list(min = mini, max = maxi, diff.min.max = maxi - mini, time.min = tmini, time.max = tmaxi))
+}
+
+
 #' FeatMaxAmplitude
 #'
 #' @param y typically measured variable, data must be normalized!
@@ -180,14 +189,19 @@ FeatHalfMaxGrow <- function(y, ...){
 
 
 FeatAllFeat <- function(y, basal, start.lag.grow, end.exp.dec, ...){
+  minmax <- FeatDiffMinMax(y)
   amplitude <- FeatMaxAmplitude(y, basal = basal)
   fwhm <- FeatFWHM(y, basal = basal, ...)
   grow.half.max <- FeatHalfMaxGrow(y, ...)
   grow.lag <- FeatLagGrow(y, start = start.lag.grow)
   dec.half.max <- FeatHalfMaxDec(y, ...)
   dec.exp <- FeatExpDec(y, end = end.exp.dec)
-  return(list(max.amp = amplitude$max,
-              time.max.amp = amplitude$time.max,
+  return(list(mini = minmax$min,
+              maxi = minmax$max,
+              diff.min.max = minmax$diff.min.max,
+              time.min = minmax$time.min,
+              time.max = minmax$time.max,
+              max.amp = amplitude$max,
               FWHM = fwhm$fwhm,
               left = fwhm$left,
               right = fwhm$right,

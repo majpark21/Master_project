@@ -1041,9 +1041,45 @@ Nothing much to say here, just like for autocorrelation.
 
 ------
 
-# Exponential fitting - Feature extraction
+# Single pulse - Feature extraction
 
+We will extract from each peak a couple of features using the functions contained in:
+```{r}
+source("../rscripts/single_peak_features.R")
+```
 
+These functions extract features out of a single peak, so we first delimit them:
+```{r}
+Cora.peak <- copy(Cora[RealTime > 10 & RealTime <= 70])
+Cora.peak[, pulse.freq := as.numeric(str_extract(Condition, "[0-9]+"))]
+```
 
+```{r}
+wrap.peak.number <- function(x, pulse.freq){
+  nber.peaks <- round((max(x) - min(x)) / pulse.freq)
+  return(rep(1:nber.peaks, each = pulse.freq, length.out = length(x)))
+}
 
+Cora.peak[, peak.number := wrap.peak.number(RealTime, unique(pulse.freq)), by = c("Condition", "Label")]
+```
+
+We then extract the feature of each independent peak:
+```{r warning = F}
+#features <- c("mini", "maxi", "diff.min.max", "time.min", "time.max", "max.amp", "FWHM", "left", "right", "grow.half", "grow.lag", "dec.half", "dec.exp")
+Cora.peak[, c("mini", "maxi", "diff.min.max", "time.min", "time.max", "max.amp", "FWHM", "left", "right", "grow.half", "grow.lag", "dec.half", "dec.exp")
+            := lapply(FeatAllFeat(y = Ratio.norm, basal = 1, start.lag.grow = 0, end.exp.dec = pulse.freq), as.numeric), 
+            by = c("Condition", "Label", "peak.number")]
+```
+
+A more clever definition of basal argument could be:
+```{r warning = F}
+#features <- c("mini", "maxi", "diff.min.max", "time.min", "time.max", "max.amp", "FWHM", "left", "right", "grow.half", "grow.lag", "dec.half", "dec.exp")
+Cora.peak[, c("mini", "maxi", "diff.min.max", "time.min", "time.max", "max.amp", "FWHM", "left", "right", "grow.half", "grow.lag", "dec.half", "dec.exp")
+            := lapply(FeatAllFeat(y = Ratio.norm, basal = min(Ratio.norm), start.lag.grow = 0, end.exp.dec = pulse.freq), as.numeric), 
+            by = c("Condition", "Label", "peak.number")]
+```
+
+```{r}
+ggplot(Cora.peak, aes(x=peak.number, y=diff.min.max)) + geom_point(alpha=0.2) + facet_wrap("Condition", scales = "free_x")
+```
 

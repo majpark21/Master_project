@@ -1,0 +1,141 @@
+---
+title: "set4 Yannick singlepulse"
+author: "Jacques Marc-Antoine"
+date: "5 octobre 2017"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data loading
+
+```{r}
+source("../rscripts/merge_load_set4_Yanni_singlepulse.R")
+source("../rscripts/package.R")
+```
+
+Plotting with stimulation signal:
+```{r cache = T, fig.width=21, fig.height=16}
+Yanni_sp2 <- merge(Yanni_sp, StimYanni_sp, by = c("Condition", "RealTime"), allow.cartesian = T)
+Yanni_sp2[, Condition := factor(Yanni_sp2$Condition, levels = levels(Yanni_sp$Condition))]
+Yanni_sp2$Pulse_intensity.norm <- ifelse(Yanni_sp2$Pulse_intensity.norm > 3, 1.3, 0.95)
+ggplot(Yanni_sp2, aes(x = RealTime)) + geom_line(aes(y=Ratio.norm, group=Label)) + geom_line(aes(y = Pulse_intensity.norm), col = "blue") + facet_wrap("Condition", ncol = 4) + stat_summary(aes(y=Ratio.norm), fun.y = mean, geom = "line", color = "red", size = 1.5)  + theme(text = element_text(size = 25))
+rm(Yanni_sp2)
+```
+
+Cut for times > 180min to have all conditions with same length.
+```{r}
+Yanni_sp <- Yanni_sp[RealTime <= 180]
+setkey(Yanni_sp, Condition, Label)
+```
+
+
+# PCA with data centered on initial peak (40 to 75 min)
+
+```{r}
+perform.PCA <- function(data, color = "Condition", na.fill = 1.2, value.var = "Ratio.norm", exp.var = c("Condition", "Label"), resp.var = "RealTime", plot.pca = F){
+  require(ggbiplot)
+  cast <- cast.and.fill(data, exp.var, resp.var, na.fill, value.var)
+  pca <- prcomp(cast$mat2, center = T, scale = T)
+  if(plot.pca) plot(pca)
+  
+  g <- ggbiplot(pca, obs.scale = 1, var.scale = 1, 
+              groups = unlist(cast$mat[, color]), ellipse = TRUE, 
+              circle = TRUE, choices = c(1,2))
+  g <- g + scale_color_discrete(name = '')
+  g <- g + theme(legend.direction = 'horizontal', 
+               legend.position = 'top')
+  return(g)
+}
+
+cast.and.fill <- function(data, exp.var = c("Condition", "Label"), resp.var = "RealTime", na.fill = 1.2, value.var = "Ratio.norm"){
+  formula <- as.formula(paste0(paste(exp.var, collapse = " + "), " ~ ", resp.var))
+  mat <- as.matrix(dcast(data, formula, value.var = value.var))
+  mat2 <- mat[,-(1:length(exp.var))]
+  class(mat2) <- "numeric"
+  mat2[which(is.na(mat2))] <- na.fill
+  return(list(mat = mat, mat2 = mat2))
+}
+```
+
+
+## With all conditions pooled
+
+```{r message=F, cache=T, fig.width=21, fig.height=12}
+perform.PCA(Yanni_sp[RealTime >= 40 & RealTime <= 75], plot.pca = T) + ggtitle("All pooled") + theme(text = element_text(size = 25))
+```
+
+Elbow method shows that considering only first 2 PC is fine.
+
+EGF is taken appart along 2nd PC which is highly correlated with the very first time points. This is because EGF amplitude reaches a much larger value quicker than NGF or FGF. The 1st PC corresponds more to the "after-peak period". Interestingly though it explains 50% of the variance, it cannot take appart the different conditions.
+
+To understand it a bit better, try to color with different variables like length of pulse and concentrations:
+```{r message=F, cache=T, fig.width=21, fig.height=12}
+Yanni_sp_pca <- copy(Yanni_sp)
+Yanni_sp_pca[, c("gf","pulse_length","concentration") := list(str_extract(Condition, "[ENF]"), str_extract(Condition, "[0-9]+$"), str_extract(Condition, "[0-9]+(\\.[0-9]+)?"))]
+
+perform.PCA(data = Yanni_sp_pca[RealTime >= 40 & RealTime <= 75], exp.var = c("Condition", "Label", "pulse_length", "concentration", "gf"), resp.var = "RealTime", color = "pulse_length")  + ggtitle("All pooled - Color Pulse length") + theme(text = element_text(size = 25))
+```
+
+Lots of 10min on 2nd PC, but this isn't very interesting since EGF and NGF are exclusively observed at 10min pulses.
+
+```{r  message=F, cache=T, fig.width=21, fig.height=12}
+perform.PCA(data = Yanni_sp_pca[RealTime >= 40 & RealTime <= 75], exp.var = c("Condition", "Label", "pulse_length", "concentration", "gf"), resp.var = "RealTime", color = "concentration")  + ggtitle("All pooled -  Color Concentration GF") + theme(text = element_text(size = 25))
+```
+
+1st PC is probably driven by "flat profiles" obtain for very low concentrations.
+
+```{r  message=F, cache=T, fig.width=21, fig.height=12}
+perform.PCA(data = Yanni_sp_pca[RealTime >= 40 & RealTime <= 75], exp.var = c("Condition", "Label", "pulse_length", "concentration", "gf"), resp.var = "RealTime", color = "gf")  + ggtitle("All pooled -  Color GF") + theme(text = element_text(size = 25))
+```
+
+Even with all conditions pooled together, we see that the 2nd PC very clearly take the GF appart. 
+
+## With the 3 GF at 10min pulse
+```{r message=F, cache=T, fig.width=21, fig.height=12}
+perform.PCA(Yanni_sp[Condition %in% levels(Condition)[1:12] & RealTime >= 40 & RealTime <= 75], plot.pca = T) + ggtitle("E,N,F 10min pulse") + theme(text = element_text(size = 25))
+```
+
+Again we consider only 2 first PC.
+
+1st PC hardly takes appart anything but N0.25-P10, so 1st PC is indeed probably driven by flat profiles. 2nd PC provides an interesting separation for the different GF.
+
+```{r  message=F, cache=T, fig.width=21, fig.height=12}
+perform.PCA(data = Yanni_sp_pca[Condition %in% levels(Condition)[1:12] & RealTime >= 40 & RealTime <= 75], exp.var = c("Condition", "Label", "pulse_length", "concentration", "gf"), resp.var = "RealTime", color = "concentration")  + ggtitle("All pooled -  Color concentration") + theme(text = element_text(size = 25))
+```
+
+```{r  message=F, cache=T, fig.width=21, fig.height=12}
+perform.PCA(data = Yanni_sp_pca[Condition %in% levels(Condition)[1:12] & RealTime >= 40 & RealTime <= 75], exp.var = c("Condition", "Label", "pulse_length", "concentration", "gf"), resp.var = "RealTime", color = "gf")  + ggtitle("All pooled -  Color GF") + theme(text = element_text(size = 25))
+```
+
+NGF displays largest variability in these conditions, what is the opposite observation to the one in the sustained exposition dataset. EGF on the contrary is extremely compact, showing a consistent response whatever concentration with 10min pulse.
+
+## With EGF only, 10min pulse
+
+```{r message=F, cache=T, fig.width=18, fig.height=7}
+perform.PCA(Yanni_sp[Condition %in% levels(Condition)[1:4] & RealTime >= 40 & RealTime <= 75]) + ggtitle("EGF 10min pulse") + theme(text = element_text(size = 20))
+```
+
+Can't really differentiate the concentrations
+
+## With NGF only, 10min pulse
+
+```{r message=F, cache=T, fig.width=18, fig.height=7}
+perform.PCA(Yanni_sp[Condition %in% levels(Condition)[5:8] & RealTime >= 40 & RealTime <= 75]) + ggtitle("NGF 10min pulse") + theme(text = element_text(size = 20))
+```
+
+NGF is extremely separable, notably at 0.25 ng/mL where the reponse is completely flat. Explained variance is very large with this dataset.
+
+## With FGF only, 10min pulse
+
+```{r message=F, cache=T, fig.width=18, fig.height=7}
+perform.PCA(Yanni_sp[Condition %in% levels(Condition)[9:12] & RealTime >= 40 & RealTime <= 75]) + ggtitle("FGF 10min pulse") + theme(text = element_text(size = 20))
+```
+
+
+
