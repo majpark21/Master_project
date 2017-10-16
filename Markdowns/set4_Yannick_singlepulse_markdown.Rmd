@@ -191,6 +191,13 @@ sep.meas.raw[, c("Cond1", "Cond2") := list(factor(Cond1, levels = levels(Yanni_s
 ggplot(sep.meas.raw, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2, ncol = 6) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash") + ggtitle("Separability along time - Raw value")
 ```
 
+```{r}
+max.val <- length(unique(sep.meas.raw$timev)) * sqrt(2)
+auc.raw <- sep.meas.raw[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")]
+auc.raw
+```
+
+
 * EGF is only separable at the time of the peak, long-term response similar.
 
 * NGF250 is the only condition which presents a sustained state on the long-run, and consequently presents long-term discrepancies with the other conditions which are adaptative. N0.25 can be used as a reference zero.
@@ -215,12 +222,143 @@ sep.meas.norm[, c("Cond1", "Cond2") := list(factor(Cond1, levels = levels(Yanni_
 ```
 
 ```{r fig.height=12, fig.width=21, cache=T}
-ggplot(sep.meas.norm, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2, ncol = 6) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash") + ggtitle("Separability along time - Raw value")
+ggplot(sep.meas.norm, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2, ncol = 6) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash") + ggtitle("Separability along time - Normalized value")
 ```
 
 As expected small differences for EGF and NGF get quite largely amplified.
 
-## With FGF at all time pulse
+```{r}
+max.val <- length(unique(sep.meas.norm$timev)) * sqrt(2)
+auc.norm <- sep.meas.norm[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")]
+auc.norm
+```
+
+## Permutation test
+
+Time series must be in matrix wide format.
+```{r}
+one.permutation.auc <- function(x, y, metric){
+  n <- nrow(x)
+  m <- nrow(y)
+  temp <- rbind(x, y)
+  samp.traj <- sample(1:nrow(temp), size = n, replace = FALSE)
+  x.resamp <- temp[samp.traj, ]
+  y.resamp <- temp[setdiff(1:nrow(temp), samp.traj), ]
+
+  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
+  return(sum(unlist(seps[metric, ])))
+}
+
+permutation.auc <- function(x, y, n, metric = "jm"){
+  # x,y: two matrices representing time series, row: trajectory; col: time
+  # n: number of permutations
+  # metric: one of "jm", "bh", "div", "tdiv", "ks"
+  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
+  return(replicate(n, one.permutation.auc(x,y,metric)))
+}
+```
+
+```{r}
+wrap_perm <- function(x, y, measure, n, na.fill){
+  a <- as.matrix(dcast(x, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  b <- as.matrix(dcast(y, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  a[which(is.na(a))] <- na.fill
+  b[which(is.na(b))] <- na.fill
+  return(permutation.auc(a, b, n))
+}
+```
+
+```{r warning=F, fig.width=21, fig.height=18, cache=T}
+temp <- apply(conditions, 2, function(x) wrap_perm(Yanni_sp[Condition==x[1]], Yanni_sp[Condition==x[2]], "Ratio", 500, median(Yanni_sp$Ratio)))
+temp <- temp/max.val
+colnames(temp) <- apply(conditions, 2, paste, collapse=" ; ")
+par(mfrow=c(3,6))
+for(j in 1:ncol(temp)){
+  hist(temp[,j], main = colnames(temp)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+}
+```
+
+## Bootstrap per-column
+
+```{r}
+one.bootstrap.auc.percol <- function(x, y, metric){
+  samp.col <- sample(1:ncol(x), size = ncol(x), replace = TRUE)
+  x.resamp <- x[, samp.col]
+  y.resamp <- y[, samp.col]
+  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
+  return(sum(unlist(seps[metric, ])))
+}
+
+bootstrap.auc.percol <- function(x, y, B, metric = "jm"){
+  # x,y: two matrices representing time series, row: trajectory; col: time
+  # B: number of boostraps
+  # metric: one of "jm", "bh", "div", "tdiv", "ks"
+  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
+  return(replicate(B, one.bootstrap.auc.percol(x,y,metric)))
+}
+```
+
+```{r}
+wrap_bootcol <- function(x, y, measure, n, na.fill){
+  a <- as.matrix(dcast(x, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  b <- as.matrix(dcast(y, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  a[which(is.na(a))] <- na.fill
+  b[which(is.na(b))] <- na.fill
+  return(bootstrap.auc.percol(a, b, n))
+}
+```
+
+```{r warning=F, fig.width=21, fig.height=18, cache=T}
+bootcol <- apply(conditions, 2, function(x) wrap_bootcol(Yanni_sp[Condition==x[1]], Yanni_sp[Condition==x[2]], "Ratio", 500, median(Yanni_sp$Ratio)))
+bootcol <- bootcol/max.val
+colnames(bootcol) <- apply(conditions, 2, paste, collapse=";")
+par(mfrow=c(3,6))
+for(j in 1:ncol(bootcol)){
+  hist(bootcol[,j], main = colnames(bootcol)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+}
+```
+
+
+## Bootstrap per-row
+
+```{r}
+one.bootstrap.auc.perrow <- function(x, y, metric){
+  samp.rowx <- sample(1:nrow(x), size = nrow(x), replace = TRUE)
+  samp.rowy <- sample(1:nrow(y), size = nrow(y), replace = TRUE)
+  x.resamp <- x[samp.rowx, ]
+  y.resamp <- y[samp.rowy, ]
+  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
+  return(sum(unlist(seps[metric, ])))
+}
+
+bootstrap.auc.perrow <- function(x, y, B, metric = "jm"){
+  # x,y: two matrices representing time series, row: trajectory; col: time
+  # B: number of boostraps
+  # metric: one of "jm", "bh", "div", "tdiv", "ks"
+  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
+  return(replicate(B, one.bootstrap.auc.perrow(x,y,metric)))
+}
+```
+
+```{r}
+wrap_bootrow <- function(x, y, measure, n, na.fill){
+  a <- as.matrix(dcast(x, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  b <- as.matrix(dcast(y, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  a[which(is.na(a))] <- na.fill
+  b[which(is.na(b))] <- na.fill
+  return(bootstrap.auc.perrow(a, b, n))
+}
+```
+
+```{r warning=F, fig.width=21, fig.height=18, cache=T}
+bootrow <- apply(conditions, 2, function(x) wrap_bootrow(Yanni_sp[Condition==x[1]], Yanni_sp[Condition==x[2]], "Ratio", 500, median(Yanni_sp$Ratio)))
+bootrow <- bootrow/max.val
+colnames(bootrow) <- apply(conditions, 2, paste, collapse=" ; ")
+par(mfrow=c(3,6))
+for(j in 1:ncol(bootrow)){
+  hist(bootrow[,j], main = colnames(bootrow)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+}
+```
 
 
 # Peak features
@@ -229,3 +367,58 @@ As expected small differences for EGF and NGF get quite largely amplified.
 source("../rscripts/single_peak_features.R")
 ```
 
+Focus on 20min after pulse for this.
+```{r}
+Yanni_cp <- copy(Yanni_sp)
+Yanni_cp <- Yanni_cp[RealTime >= 36 & RealTime <= 60]
+Yanni_cp[, c("mini", "maxi", "diff.min.max", "time.min", "time.max", "max.amp", "FWHM", "left", "right", "grow.half", "grow.lag", "dec.half", "dec.exp") := lapply(FeatAllFeat(y = Ratio.norm, basal = min(Ratio.norm), start.lag.grow = 36, end.exp.dec = 60), as.numeric), by = c("Condition", "Label")]
+```
+
+Extract only the first row of each trajectory (avoid redundancy):
+```{r}
+Yanni_cp[,uniqueID := paste0(Condition, Label)]
+Yanni_cp <- Yanni_cp[!duplicated(Yanni_cp$uniqueID),]
+```
+
+Plotting mean feature with radar plots:
+```{r}
+library(fmsb)
+colstoavg <- names(Yanni_cp)[c(6:8, 10, 12, 15, 17)]
+meanvec <- Yanni_cp[, lapply(.SD,mean,na.rm=TRUE), by="Condition", .SDcols=colstoavg]
+# Add 2 dummy lines atop to indicate minimum and maximum of axis
+maxvec <- matrix(apply(meanvec, 2, max, na.rm=T), nrow = 1, dimnames = list(c(), colnames(meanvec)))[,-1, drop=F]
+minvec <- matrix(apply(meanvec, 2, min, na.rm=T), nrow = 1, dimnames = list(c(), colnames(meanvec)))[,-1, drop=F]
+temp <- rbind(maxvec, minvec, meanvec[,-1])
+temp <- as.data.table(apply(temp, 2, as.numeric))
+```
+
+```{r, fig.width=21, fig.height=8}
+par(mfrow=c(1,3))
+radarchart(temp[1:6, c( "diff.min.max", "mini","maxi", "grow.half", "dec.half", "FWHM", "time.max")], axistype = 2, vlcex = 2, palcex = 1.75)
+legend(x="top", legend=levels(meanvec$Condition)[1:4], seg.len=0.5, pch=1, 
+    bty="n" ,lwd=3, y.intersp=0.5, horiz=T, col=1:8, cex = 2)
+
+radarchart(temp[c(1,2,7:10), c( "diff.min.max", "mini","maxi", "grow.half", "dec.half", "FWHM", "time.max")], axistype = 2, vlcex = 2, palcex = 1.75)
+legend(x="top", legend=levels(meanvec$Condition)[5:8], seg.len=0.5, pch=1, 
+    bty="n" ,lwd=3, y.intersp=0.5, horiz=T, col=1:8, cex = 2)
+
+radarchart(temp[c(1,2,11:14), c( "diff.min.max", "mini","maxi", "grow.half", "dec.half", "FWHM", "time.max")], axistype = 2, vlcex = 2, palcex = 1.75)
+legend(x="top", legend=levels(meanvec$Condition)[9:12], seg.len=0.5, pch=1, 
+    bty="n" ,lwd=3, y.intersp=0.5, horiz=T, col=1:8, cex = 2)
+```
+
+Same plots with less annotations:
+```{r, fig.width=21, fig.height=8, echo=F}
+par(mfrow=c(1,3))
+radarchart(temp[1:6, c( "diff.min.max", "mini","maxi", "grow.half", "dec.half", "FWHM", "time.max")], axistype = 0, vlcex = 2, palcex = 1.75)
+legend(x="top", legend=levels(meanvec$Condition)[1:4], seg.len=0.5, pch=1, 
+    bty="n" ,lwd=3, y.intersp=0.5, horiz=T, col=1:8, cex = 2)
+
+radarchart(temp[c(1,2,7:10), c( "diff.min.max", "mini","maxi", "grow.half", "dec.half", "FWHM", "time.max")], axistype = 0, vlcex = 2, palcex = 1.75)
+legend(x="top", legend=levels(meanvec$Condition)[5:8], seg.len=0.5, pch=1, 
+    bty="n" ,lwd=3, y.intersp=0.5, horiz=T, col=1:8, cex = 2)
+
+radarchart(temp[c(1,2,11:14), c( "diff.min.max", "mini","maxi", "grow.half", "dec.half", "FWHM", "time.max")], axistype = 0, vlcex = 2, palcex = 1.75)
+legend(x="top", legend=levels(meanvec$Condition)[9:12], seg.len=0.5, pch=1, 
+    bty="n" ,lwd=3, y.intersp=0.5, horiz=T, col=1:8, cex = 2)
+```
