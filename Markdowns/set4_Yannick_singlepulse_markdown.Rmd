@@ -137,5 +137,95 @@ NGF is extremely separable, notably at 0.25 ng/mL where the reponse is completel
 perform.PCA(Yanni_sp[Condition %in% levels(Condition)[9:12] & RealTime >= 40 & RealTime <= 75]) + ggtitle("FGF 10min pulse") + theme(text = element_text(size = 20))
 ```
 
+# Quantify overlap of clouds in PCA
 
+## Inverse Davis Bouldin Index
+
+
+# Separability measure along time - AUC
+
+```{r}
+sep.meas.along.time <- function(data1, data2, time.col, measure.col){
+  timev <- unique(data1[, get(time.col)])
+  if(!(identical(unique(data2[, get(time.col)]), timev))) stop("Time vectors must be identical between the two data")
+  out <- separability.measures(data1[get(time.col)==timev[1], get(measure.col)], data2[get(time.col)==timev[1], get(measure.col)])
+  for(t in timev[2:length(timev)]){
+    out <- rbind(out, separability.measures(data1[RealTime==t, get(measure.col)], data2[RealTime==t, get(measure.col)]))
+  }
+  out <- cbind(timev, out)
+  return(out)
+}
+```
+
+## With the 3 GF at 10min pulse
+
+```{r}
+library(plyr)
+# Get all pairs of conditions
+conditions_EGF <- combn(as.character(unique(Yanni_sp[,Condition])[1:4]), m = 2)
+conditions_NGF <- combn(as.character(unique(Yanni_sp[,Condition])[5:8]), m = 2)
+conditions_FGF <- combn(as.character(unique(Yanni_sp[,Condition])[9:12]), m = 2)
+
+conditions <- cbind(conditions_EGF, conditions_NGF, conditions_FGF)
+rm(conditions_EGF, conditions_FGF, conditions_NGF)
+```
+
+### With raw data
+
+```{r}
+# Compute separabilities of conditions at each time point
+sep.meas.raw <- apply(conditions, 2, function(x) sep.meas.along.time(Yanni_sp[Condition==x[1]],  Yanni_sp[Condition==x[2]], "RealTime", "Ratio" ))
+names(sep.meas.raw) <- apply(conditions, 2, function(x) paste(x[1], x[2], sep = ","))
+
+# Go to data table
+for(i in 1:length(sep.meas.raw)){
+  temp <- unlist(strsplit(names(sep.meas.raw)[i], ","))
+  sep.meas.raw[[i]]$Cond1 <- temp[1]
+  sep.meas.raw[[i]]$Cond2 <- temp[2]
+}
+sep.meas.raw <- as.data.table(rbind.fill(sep.meas.raw))
+sep.meas.raw[, c("Cond1", "Cond2") := list(factor(Cond1, levels = levels(Yanni_sp$Condition)), factor(Cond2, levels = levels(Yanni_sp$Condition)))]
+```
+
+```{r fig.height=12, fig.width=21, cache=T}
+ggplot(sep.meas.raw, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2, ncol = 6) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash") + ggtitle("Separability along time - Raw value")
+```
+
+* EGF is only separable at the time of the peak, long-term response similar.
+
+* NGF250 is the only condition which presents a sustained state on the long-run, and consequently presents long-term discrepancies with the other conditions which are adaptative. N0.25 can be used as a reference zero.
+
+* FGF conditions shows the weakness of the method, as it can't tell any condition appart whereas there's clearly a difference between those. This is because this measure only look at the range where the data are varying. FGF response is never frankly going off from "zero". Normalization can provide a way to amplify these differences.
+
+### With normalized data
+
+```{r warning=F}
+# Compute separabilities of conditions at each time point
+sep.meas.norm <- apply(conditions, 2, function(x) sep.meas.along.time(Yanni_sp[Condition==x[1]],  Yanni_sp[Condition==x[2]], "RealTime", "Ratio.norm" ))
+names(sep.meas.norm) <- apply(conditions, 2, function(x) paste(x[1], x[2], sep = ","))
+
+# Go to data table
+for(i in 1:length(sep.meas.norm)){
+  temp <- unlist(strsplit(names(sep.meas.norm)[i], ","))
+  sep.meas.norm[[i]]$Cond1 <- temp[1]
+  sep.meas.norm[[i]]$Cond2 <- temp[2]
+}
+sep.meas.norm <- as.data.table(rbind.fill(sep.meas.norm))
+sep.meas.norm[, c("Cond1", "Cond2") := list(factor(Cond1, levels = levels(Yanni_sp$Condition)), factor(Cond2, levels = levels(Yanni_sp$Condition)))]
+```
+
+```{r fig.height=12, fig.width=21, cache=T}
+ggplot(sep.meas.norm, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2, ncol = 6) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash") + ggtitle("Separability along time - Raw value")
+```
+
+As expected small differences for EGF and NGF get quite largely amplified.
+
+## With FGF at all time pulse
+
+
+# Peak features
+
+```{r}
+source("../rscripts/single_peak_features.R")
+```
 
