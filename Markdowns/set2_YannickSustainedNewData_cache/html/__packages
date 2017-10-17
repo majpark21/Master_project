@@ -1,0 +1,7 @@
+base
+data.table
+ggplot2
+stringr
+plyr
+scales
+ggbiplot

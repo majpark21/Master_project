@@ -1,0 +1,484 @@
+---
+title: "set2Yannick - Sustained E/N/FGF - New data"
+author: "Jacques Marc-Antoine"
+date: "17 octobre 2017"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+source("../rscripts/package.R")
+```
+
+# Load data
+
+```{r}
+Yanni <- fread("C:/Users/pixel/Dropbox/Marc-Antoine/data/set2_Yannick_EGFNGFFGFsust_PC12/combined.data.long/new_sust_E_F_N.csv")
+library(stringr)
+# Create a column with usable names for conditions (XYYY, where E represents the growth factor and YYY its concentration)
+gf <- str_extract(Yanni$Stim_All_Ch, "[E,F,N]")
+conc <- str_extract(Yanni$Stim_All_Ch, "(([0-9]+\\.[0-9]*)|([0-9]+))")
+Yanni$Condition <- paste(gf, conc, sep = "-")
+Yanni[, c("TrackObjects_Label_uni","Condition") := list(as.factor(TrackObjects_Label_uni), as.factor(Condition))]
+setkey(Yanni, Condition, TrackObjects_Label_uni)
+setnames(Yanni, c("Intensity_MeanIntensity_Ratio", "TrackObjects_Label_uni"), c("Ratio","Label"))
+setcolorder(Yanni, c("Condition", "Label","RealTime", "Ratio", "Metadata_Series", "Metadata_T", "TrackObjects_Label","Stim_All_Ch", "Stim_All_S"))
+del.cols <- names(Yanni)[5:9]
+Yanni[, (del.cols) := NULL]
+rm(gf, conc, del.cols)
+
+# Trim-axis, normalization fold change per trajectory
+Yanni <- Yanni[RealTime <= 200]
+Yanni <- myNorm(in.dt = Yanni, in.meas.col = "Ratio", in.rt.min = 0, in.rt.max = 36, in.by.cols = c("Condition", "Label"), in.type = "fold.change")
+
+# Clip outliers and set NAs to reasonable value
+Yanni[Ratio.norm >= 1.5, c("Ratio", "Ratio.norm") := list(median(Yanni$Ratio), median(Yanni$Ratio.norm))]
+Yanni[is.na(Ratio.norm), c("Ratio", "Ratio.norm") := list(median(Yanni$Ratio, na.rm = T), median(Yanni$Ratio.norm, na.rm = T))]
+
+head(Yanni)
+```
+
+```{r fig.width=21, fig.height=12, cache=T}
+ggplot(Yanni, aes(y=Ratio.norm, x=RealTime)) + geom_line(aes(group=Label)) + facet_wrap(~Condition) + stat_summary(fun.y=mean, geom="line", colour = "red", size = 1.5) + theme(text = element_text(size = 25))
+```
+
+Only the NGF conditions are different from previous analysis.
+
+# Visualization PCA
+
+## Data trimming and fucntion definition
+
+For better separation, we use a trimmed version of the dataset here:
+```{r}
+Yanni_short <- Yanni[RealTime >= 25 & RealTime <= 100]
+Yanni_short[, GF := str_extract(Condition, "[ENF]")]
+Yanni_short[, Conc := str_extract(Condition, "[0-9]+(\\.[0-9]+)?")]
+Yanni_short[, c("GF", "Conc") := list(as.factor(GF), as.factor(Conc))]
+```
+
+```{r fig.width=22, fig.height=12, cache=T, echo=F}
+ggplot(Yanni_short, aes(y=Ratio.norm, x=RealTime)) + geom_line(aes(group=Label)) + facet_wrap(~Condition) + stat_summary(fun.y=mean, geom="line", colour = "red", size = 1.5) + theme(text = element_text(size = 25))
+```
+
+
+```{r}
+perform.PCA <- function(data, color = "Condition", na.fill = 1.1, value.var = "Ratio.norm", exp.var = c("Condition", "Label"), resp.var = "RealTime", plot.pca = F){
+  require(ggbiplot)
+  cast <- cast.and.fill(data, exp.var, resp.var, na.fill, value.var)
+  pca <- prcomp(cast$mat2, center = T, scale = F)
+  if(plot.pca) plot(pca)
+  
+  g <- ggbiplot(pca, obs.scale = 1, var.scale = 1, 
+              groups = unlist(cast$mat[, color]), ellipse = TRUE, 
+              circle = TRUE, choices = c(1,2))
+  g <- g + scale_color_discrete(name = '')
+  g <- g + theme(legend.direction = 'horizontal', 
+               legend.position = 'top')
+  return(g)
+}
+
+cast.and.fill <- function(data, exp.var = c("Condition", "Label"), resp.var = "RealTime", na.fill = 1.2, value.var = "Ratio.norm"){
+  formula <- as.formula(paste0(paste(exp.var, collapse = " + "), " ~ ", resp.var))
+  mat <- as.matrix(dcast(data, formula, value.var = value.var))
+  mat2 <- mat[,-(1:length(exp.var))]
+  class(mat2) <- "numeric"
+  mat2[which(is.na(mat2))] <- na.fill
+  return(list(mat = mat, mat2 = mat2))
+}
+```
+
+## All pooled
+
+Elbow method points to consider only the 2st components!
+
+```{r message=F, fig.width=21, fig.height=12, cache=T}
+perform.PCA(Yanni_short, plot.pca = T) + ggtitle("All pooled") + theme(text = element_text(size = 25))
+```
+
+```{r message=F, fig.width=21, fig.height=12, cache=T}
+perform.PCA(Yanni_short, exp.var = c("Condition", "Label", "Conc", "GF"), plot.pca = F, color = "GF") + ggtitle("All pooled - Color GF") + theme(text = element_text(size = 25))
+```
+
+```{r message=F, fig.width=21, fig.height=12, cache=T}
+perform.PCA(Yanni_short, exp.var = c("Condition", "Label", "Conc", "GF"), plot.pca = F, color = "Conc") + ggtitle("All pooled - Color Concentration") + theme(text = element_text(size = 25))
+```
+
+PC1 separate based on what comes after the peak (sustained or adaptative), whereas PC2 separates based on peak shape right after pulse.
+
+### Extreme trajectories visualization
+
+Let's look at some representative trajectories:
+```{r}
+visualize.extremes.PCA <- function(pca.object, matrix.data, PC, n, tails = "both", interact=T){
+  # Visualize the n extreme individuals of the component PC. Tails indicates if the extremes are to be picked from left, right or both tails of PC. Matrix.data is the matrix in wide format that was used to run the pca analysis with stats::prcomp.
+  
+  ord <- order(pca.object$x[,PC])
+  ordd <- rev(ord)
+  if(tails=="both"){
+    par(mfrow=c(1,2))
+    for(i in 1:n){
+      mini <-  min(matrix.data[ord[i],], matrix.data[ordd[i],])
+      maxi <- max(matrix.data[ord[i],], matrix.data[ordd[i],])
+      plot(matrix.data[ord[i],], type = "l", ylim = c(mini, maxi), xlab = "Time", ylab = "Trajectory", main = paste0("Negative Tail - Coord PC", PC, ": ", round(pca.object$x[ord[i], PC], 4)))
+      plot(matrix.data[ordd[i],], type = "l", ylim = c(mini, maxi), xlab = "Time", ylab = "Trajectory", main = paste0("Positive Tail - Coord PC", PC, ": ", round(pca.object$x[ordd[i], PC], 4)))
+      if(interact) readline(prompt="Press [enter] to see next plots")
+    }
+  }
+  
+  else if(tails=="positive"){
+    for(i in 1:n){
+      plot(matrix.data[ordd[i],], type = "l", xlab = "Time", ylab = "Trajectory", main = paste0("Positive Tail - Coord PC", PC, ": ", round(pca.object$x[ordd[i], PC], 4)))
+      if(interact) readline(prompt="Press [enter] to see next plots")
+    }
+  }
+  
+  else if(tails=="positive"){
+    for(i in 1:n){
+      plot(matrix.data[ord[i],], type = "l", xlab = "Time", ylab = "Trajectory", main = paste0("Negative Tail - Coord PC", PC, ": ", round(pca.object$x[ord[i], PC], 4)))
+      if(interact) readline(prompt="Press [enter] to see next plots")
+    }
+  }
+}
+```
+
+```{r}
+temp <- cast.and.fill(Yanni_short, c("Condition", "Label"), "RealTime", median(Yanni_short$Ratio.norm), "Ratio.norm")
+conditions <- temp$mat[,1]
+labels <- temp$mat[,2]
+pca <- prcomp(temp$mat2, center = T, scale = F)
+```
+
+```{r}
+visualize.extremes.PCA(pca, temp$mat2, PC=1, 3, interact = F)
+```
+
+PC1 separates constant and/or decreasing trajectories from the sustained ones.
+
+```{r}
+visualize.extremes.PCA(pca, temp$mat2, PC=2, 3, interact = F, tail = "both")
+```
+
+PC2 separates short-term increase and long-term increase, this correlates quite well with growth factor which reacts with different lag.
+
+
+## EGF only
+
+```{r message=F, fig.width=21, fig.height=12, cache=T}
+perform.PCA(Yanni_short[GF=="E"], plot.pca = T) + ggtitle("EGF only") + theme(text = element_text(size = 25))
+```
+
+```{r}
+temp <- cast.and.fill(Yanni_short[GF=="E"], c("Condition", "Label"), "RealTime", median(Yanni_short$Ratio.norm), "Ratio.norm")
+conditions <- temp$mat[,1]
+labels <- temp$mat[,2]
+pca <- prcomp(temp$mat2, center = T, scale = F)
+```
+
+```{r}
+visualize.extremes.PCA(pca, temp$mat2, PC=1, 3, interact = F, tail = "both")
+```
+
+Visual inspection of more extremes show once again separation sustained/peaky as driving behaviour on PC1.
+
+## NGF only
+
+```{r message=F, fig.width=21, fig.height=12, cache=T}
+perform.PCA(Yanni_short[GF=="N"], plot.pca = T) + ggtitle("NGF only") + theme(text = element_text(size = 25))
+```
+
+```{r}
+temp <- cast.and.fill(Yanni_short[GF=="N"], c("Condition", "Label"), "RealTime", median(Yanni_short$Ratio.norm), "Ratio.norm")
+conditions <- temp$mat[,1]
+labels <- temp$mat[,2]
+pca <- prcomp(temp$mat2, center = T, scale = F)
+```
+
+```{r}
+visualize.extremes.PCA(pca, temp$mat2, PC=1, 3, interact = F, tail = "both")
+```
+
+Visual inspections of PC1 shows a clear separation of not reaction cells versus reacting cells (sustained response). Not peak response in the extremes.
+
+## FGF only
+
+```{r message=F, fig.width=21, fig.height=12, cache=T}
+perform.PCA(Yanni_short[GF=="F"], plot.pca = T) + ggtitle("FGF only") + theme(text = element_text(size = 25))
+```
+
+```{r}
+temp <- cast.and.fill(Yanni_short[GF=="F"], c("Condition", "Label"), "RealTime", median(Yanni_short$Ratio.norm), "Ratio.norm")
+conditions <- temp$mat[,1]
+labels <- temp$mat[,2]
+pca <- prcomp(temp$mat2, center = T, scale = F)
+```
+
+```{r}
+visualize.extremes.PCA(pca, temp$mat2, PC=1, 3, interact = F, tail = "both")
+```
+
+PC1 again peak versus sustained, PC2 separates cells based on amplitude of initial peak.
+
+
+# Separability measure along time - AUC
+
+## Compute AUC separability
+
+```{r}
+sep.meas.along.time <- function(data1, data2, time.col, measure.col){
+  timev <- sort(unique(data1[, get(time.col)]))
+  if(!(identical(sort(unique(data2[, get(time.col)])), timev))) stop("Time vectors must be identical between the two data")
+  out <- separability.measures(data1[get(time.col)==timev[1], get(measure.col)], data2[get(time.col)==timev[1], get(measure.col)])
+  for(t in timev[2:length(timev)]){
+    out <- rbind(out, separability.measures(data1[RealTime==t, get(measure.col)], data2[RealTime==t, get(measure.col)]))
+  }
+  out <- cbind(timev, out)
+  return(out)
+}
+```
+
+```{r}
+library(plyr)
+# Get all pairs of conditions
+conditions_EGF <- combn(as.character(unique(Yanni[, Condition]))[1:4], m = 2)
+conditions_FGF <- combn(as.character(unique(Yanni[, Condition]))[5:8], m = 2)
+conditions_NGF <- combn(as.character(unique(Yanni[, Condition]))[9:12], m = 2)
+
+conditions <- cbind(conditions_EGF, conditions_NGF, conditions_FGF)
+rm(conditions_EGF, conditions_FGF, conditions_NGF)
+```
+
+```{r warning=F}
+# Compute separabilities of conditions at each time point
+sep.meas.raw <- apply(conditions, 2, function(x) sep.meas.along.time(Yanni[Condition==x[1]],  Yanni[Condition==x[2]], "RealTime", "Ratio" ))
+names(sep.meas.raw) <- apply(conditions, 2, function(x) paste(x[1], x[2], sep = ","))
+
+# Go to data table
+for(i in 1:length(sep.meas.raw)){
+  temp <- unlist(strsplit(names(sep.meas.raw)[i], ","))
+  sep.meas.raw[[i]]$Cond1 <- temp[1]
+  sep.meas.raw[[i]]$Cond2 <- temp[2]
+}
+sep.meas.raw <- as.data.table(rbind.fill(sep.meas.raw))
+sep.meas.raw[, c("Cond1", "Cond2") := list(factor(Cond1, levels = levels(Yanni$Condition)), factor(Cond2, levels = levels(Yanni$Condition)))]
+```
+
+```{r fig.width=21, fig.height=12}
+ggplot(sep.meas.raw, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2, ncol = 6) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash") + ggtitle("Separability along time - Raw value")
+```
+
+```{r}
+max.val <- length(unique(sep.meas.raw$timev)) * sqrt(2)
+auc.raw <- sep.meas.raw[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")]
+auc.raw
+```
+
+Same values for EGF and NGF as the ones obtained with previous version of the dataset (sanity check OK, minor variations due to the way outliers were slightly differently handled). 
+
+
+## Permutation test
+
+```{r}
+one.permutation.auc <- function(x, y, metric){
+  n <- nrow(x)
+  m <- nrow(y)
+  temp <- rbind(x, y)
+  samp.traj <- sample(1:nrow(temp), size = n, replace = FALSE)
+  x.resamp <- temp[samp.traj, ]
+  y.resamp <- temp[setdiff(1:nrow(temp), samp.traj), ]
+
+  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
+  return(sum(unlist(seps[metric, ])))
+}
+
+permutation.auc <- function(x, y, n, metric = "jm"){
+  # x,y: two matrices representing time series, row: trajectory; col: time
+  # n: number of permutations
+  # metric: one of "jm", "bh", "div", "tdiv", "ks"
+  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
+  return(replicate(n, one.permutation.auc(x,y,metric)))
+}
+
+wrap_perm <- function(x, y, measure, n, na.fill){
+  a <- as.matrix(dcast(x, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  b <- as.matrix(dcast(y, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  a[which(is.na(a))] <- na.fill
+  b[which(is.na(b))] <- na.fill
+  return(permutation.auc(a, b, n))
+}
+```
+
+```{r fig.height=18, fig.width=21, warning=F, cache=T}
+temp <- apply(conditions, 2, function(x) wrap_perm(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", 500, median(Yanni$Ratio)))
+temp <- temp/max.val
+colnames(temp) <- apply(conditions, 2, paste, collapse=" ; ")
+par(mfrow=c(3,6))
+for(j in 1:ncol(temp)){
+  hist(temp[,j], main = colnames(temp)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+}
+```
+
+## Bootstrap per-column
+
+```{r}
+one.bootstrap.auc.percol <- function(x, y, metric){
+  samp.col <- sample(1:ncol(x), size = ncol(x), replace = TRUE)
+  x.resamp <- x[, samp.col]
+  y.resamp <- y[, samp.col]
+  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
+  return(sum(unlist(seps[metric, ])))
+}
+
+bootstrap.auc.percol <- function(x, y, B, metric = "jm"){
+  # x,y: two matrices representing time series, row: trajectory; col: time
+  # B: number of boostraps
+  # metric: one of "jm", "bh", "div", "tdiv", "ks"
+  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
+  return(replicate(B, one.bootstrap.auc.percol(x,y,metric)))
+}
+
+wrap_bootcol <- function(x, y, measure, n, na.fill){
+  a <- as.matrix(dcast(x, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  b <- as.matrix(dcast(y, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  a[which(is.na(a))] <- na.fill
+  b[which(is.na(b))] <- na.fill
+  return(bootstrap.auc.percol(a, b, n))
+}
+```
+
+```{r warning=F, fig.width=21, fig.height=18, cache=T}
+bootcol <- apply(conditions, 2, function(x) wrap_bootcol(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", 500, median(Yanni$Ratio)))
+bootcol <- bootcol/max.val
+colnames(bootcol) <- apply(conditions, 2, paste, collapse=";")
+par(mfrow=c(3,6))
+for(j in 1:ncol(bootcol)){
+  hist(bootcol[,j], main = colnames(bootcol)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+}
+```
+
+## Bootstrap per-row
+
+```{r}
+one.bootstrap.auc.perrow <- function(x, y, metric){
+  samp.rowx <- sample(1:nrow(x), size = nrow(x), replace = TRUE)
+  samp.rowy <- sample(1:nrow(y), size = nrow(y), replace = TRUE)
+  x.resamp <- x[samp.rowx, ]
+  y.resamp <- y[samp.rowy, ]
+  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
+  return(sum(unlist(seps[metric, ])))
+}
+
+bootstrap.auc.perrow <- function(x, y, B, metric = "jm"){
+  # x,y: two matrices representing time series, row: trajectory; col: time
+  # B: number of boostraps
+  # metric: one of "jm", "bh", "div", "tdiv", "ks"
+  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
+  return(replicate(B, one.bootstrap.auc.perrow(x,y,metric)))
+}
+
+wrap_bootrow <- function(x, y, measure, n, na.fill){
+  a <- as.matrix(dcast(x, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  b <- as.matrix(dcast(y, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
+  a[which(is.na(a))] <- na.fill
+  b[which(is.na(b))] <- na.fill
+  return(bootstrap.auc.perrow(a, b, n))
+}
+```
+
+```{r warning=F, fig.width=21, fig.height=18, cache=T}
+bootrow <- apply(conditions, 2, function(x) wrap_bootrow(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", 500, median(Yanni$Ratio)))
+bootrow <- bootrow/max.val
+colnames(bootrow) <- apply(conditions, 2, paste, collapse=" ; ")
+par(mfrow=c(3,6))
+for(j in 1:ncol(bootrow)){
+  hist(bootrow[,j], main = colnames(bootrow)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+}
+```
+
+## Confidence intervals from bootstraps
+
+```{r}
+# Get CI directly from bootstrap quantiles
+ci.bootcol <- apply(bootcol, 2, quantile, probs = c(0.025, 0.975))
+ci.bootrow <- apply(bootrow, 2, quantile, probs = c(0.025, 0.975))
+
+# Plotting variables
+auc.raw$ci.low.col <- ci.bootcol[1,]
+auc.raw$ci.high.col <- ci.bootcol[2,]
+auc.raw$ci.low.row <- ci.bootrow[1,]
+auc.raw$ci.high.row <- ci.bootrow[2,]
+auc.raw[, comb.cond := as.factor(paste(Cond1, Cond2, sep = ";"))]
+auc.raw[, GF := as.factor(paste0(str_sub(Cond1,1,1), "GF"))]
+```
+
+```{r fig.width=12, fig.height=4}
+ggplot(auc.raw, aes(x=Cond1, y=Cond2)) + geom_raster(aes(fill=auc)) + facet_wrap(~GF, scales = "free")
+```
+
+```{r fig.width=21, fig.height=12}
+ggplot(auc.raw, aes(x=comb.cond, y=auc, group = 1)) + 
+    geom_errorbar(aes(ymin=ci.low.col, ymax=ci.high.col)) +
+    geom_point(size = 5, shape=21, fill = "white" ) +
+    facet_grid(.~GF, scales = "free") + 
+    ggtitle("CI based on per column bootstraps") +
+    theme(strip.text.x = element_text(size=30), axis.text = element_text(size=13), title = element_text(size=30))
+```
+
+```{r fig.width=21, fig.height=12}
+ggplot(auc.raw, aes(x=comb.cond, y=auc, group = 1)) + 
+    geom_errorbar(aes(ymin=ci.low.row, ymax=ci.high.row)) +
+    geom_point(size = 5, shape=21, fill = "white" ) +
+    facet_grid(.~GF, scales = "free") + 
+    ggtitle("CI based on per row bootstraps") +
+    theme(strip.text.x = element_text(size=30), axis.text = element_text(size=13), title = element_text(size=30))
+```
+
+## Hierarchical clustering using AUC as distance metric
+
+
+
+```{r}
+# Reshape to "diagonal"
+dist.raw <- dcast(data=auc.raw[,1:3], formula = Cond1 ~ Cond2, value.var = "auc")
+row_nams <- c(dist.raw[,1])$Cond1
+dist.raw <- dist.raw[,-1]
+dist.raw
+
+# Isolate EGF, go to square symmetric matrix
+temp <- as.matrix(dist.raw[1:3,1:3])
+rownames(temp) <- row_nams[1:3]
+indices <- unique(c(rownames(temp), colnames(temp)))
+mat.EGF <- matrix(0, nrow=length(indices), ncol=length(indices),dimnames = list(indices,indices))
+mat.EGF[upper.tri(mat.EGF, diag = F)] <- temp[upper.tri(temp, diag=T)]
+mat.EGF <- mat.EGF + t(mat.EGF)
+# Hierarchical clustering
+plot(as.dendrogram(hclust(as.dist(mat.EGF))), ylim = c(0,0.3), main = "AUC as distance matrix - EGF")
+
+
+# Isolate FGF, go to square symmetric matrix
+temp <- as.matrix(dist.raw[4:6,4:6])
+rownames(temp) <- row_nams[4:6]
+indices <- unique(c(rownames(temp), colnames(temp)))
+mat.FGF <- matrix(0, nrow=length(indices), ncol=length(indices),dimnames = list(indices,indices))
+mat.FGF[upper.tri(mat.FGF, diag = F)] <- temp[upper.tri(temp, diag=T)]
+mat.FGF <- mat.FGF + t(mat.FGF)
+# Hierarchical clustering
+plot(as.dendrogram(hclust(as.dist(mat.FGF))), ylim = c(0,0.3), main = "AUC as distance matrix - FGF")
+
+
+# Isolate NGF, go to square symmetric matrix
+temp <- as.matrix(dist.raw[7:9,7:9])
+rownames(temp) <- row_nams[7:9]
+indices <- unique(c(rownames(temp), colnames(temp)))
+mat.NGF <- matrix(0, nrow=length(indices), ncol=length(indices),dimnames = list(indices,indices))
+mat.NGF[upper.tri(mat.NGF, diag = F)] <- temp[upper.tri(temp, diag=T)]
+mat.NGF <- mat.NGF + t(mat.NGF)
+# Hierarchical clustering
+plot(as.dendrogram(hclust(as.dist(mat.NGF))), ylim = c(0,0.3), main = "AUC as distance matrix - NGF")
+```
+
