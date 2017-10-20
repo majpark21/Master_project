@@ -32,7 +32,27 @@ perform.all.analysis <- function(data, measure.var, condition.var, time.var, col
 #' @export
 #'
 #' @examples
-report.PCA <- function(data, what, na.fill = NULL, measure.var = NULL, condition.var = NULL, time.var = NULL, PC = c(1,2), label.color.pca = NULL, center.pca = T, scale.pca = T, n.extremes = NULL,...){
+#' library(data.table)
+#' # Create some dummy data, imagine 10 time series under three conditions A, B or C in a long data.table
+#' number.measure <- 101
+#' mydata <- data.table(Condition = rep(LETTERS[1:3], each = 10*number.measure),
+#'  Label = rep(1:10, each = number.measure),
+#'  Time=rep(seq(0,100), 30))
+#' 
+#' # A: oscillate around 1 for 10 time units, then shift to oscillation around 1.3
+#' # B: oscillate around 1 for 10 time units, then peak to 1.3 and gets back to 1
+#' # C: oscillate around 1 all along trajectory
+#' 
+#' mydata[Condition=="A", Measure := c(rnorm(10, 1, 0.05), rnorm(91, 1.3, 0.05)), by = "Label"]
+#' mydata[Condition=="B", Measure := c(rnorm(10, 1, 0.05), rnorm(91, 1.3, 0.05) - seq(0, 0.3, length.out = 91)), by = "Label"]
+#' mydata[Condition=="C", Measure := rnorm(101, 1, 0.05), by = "Label"]
+#' ggplot(mydata, aes(x=Time, y=Measure)) + geom_line(aes(group=Label), alpha = 0.3) + facet_wrap("Condition") +
+#'  stat_summary(fun.y = mean, geom = "line", col = "red", size = 1.25)
+#' 
+#' report.PCA(mydata, what = c("cast.and.pca", "plot.variance", "plot.pca", "plot.extremes"), measure.var="Measure",
+#' condition.var=c("Condition", "Label"), time.var="Time", label.color.pca = "Condition", PC=c(1,2), n.extremes = 5)
+#' 
+report.PCA <- function(data, what, measure.var = NULL, condition.var = NULL, time.var = NULL, PC = c(1,2), na.fill = NULL, label.color.pca = NULL, center.pca = T, scale.pca = T, n.extremes = NULL,...){
   require(ggbiplot)
   # Argument check
   arg.what <- c("cast.and.pca", "nocast.and.pca", "pca.only", "plot.pca", "plot.variance", "plot.extremes")
