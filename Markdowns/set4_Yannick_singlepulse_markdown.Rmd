@@ -41,7 +41,7 @@ setkey(Yanni_sp, Condition, Label)
 perform.PCA <- function(data, color = "Condition", na.fill = 1.2, value.var = "Ratio.norm", exp.var = c("Condition", "Label"), resp.var = "RealTime", plot.pca = F){
   require(ggbiplot)
   cast <- cast.and.fill(data, exp.var, resp.var, na.fill, value.var)
-  pca <- prcomp(cast$mat2, center = T, scale = T)
+  pca <- prcomp(cast$mat2, center = T, scale = F)
   if(plot.pca) plot(pca)
   
   g <- ggbiplot(pca, obs.scale = 1, var.scale = 1, 
@@ -139,8 +139,61 @@ perform.PCA(Yanni_sp[Condition %in% levels(Condition)[9:12] & RealTime >= 40 & R
 
 # Quantify overlap of clouds in PCA
 
-## Inverse Davis Bouldin Index
+## Inverse Davies Bouldin Index
 
+This is an index for clustering quality. It is based on the ratio of distance to center within cluster, over distance of centers inter-cluster. A good clustering schema minimizes the DB index.
+
+Shall we consider all PC for computing the DB? Or just a fixed number? Or even a percentile of explained variance.
+```{r}
+PCA.DB <- function(data, PC, ...){
+  require(RDRToolbox)
+  PC <- paste0("PC", PC)
+  temp <- cast.and.fill(data, ...)
+  pca <- prcomp(temp$mat2, center = T, scale = F)
+  # Turn pca coordinates into a data table
+  pca_coord <- as.data.table(pca$x)
+  pca_coord[, c("Condition", "Label") := list(temp$mat[,1], temp$mat[,2])]
+  setcolorder(pca_coord, c("Condition", "Label", names(pca_coord)[-c(length(pca_coord)-1, length(pca_coord))]))
+  db <- DBIndex(data = as.matrix(pca_coord[, ..PC]), labels = unlist(pca_coord[,1]))
+  return(list(DB=db, exp.var=cumsum(pca$sdev^2L)/sum(pca$sdev^2)))
+}
+```
+
+```{r cache=T}
+temp <- lapply(lapply(X = 2:18, seq), function(x) PCA.DB(Yanni_sp[RealTime >= 40 & RealTime <= 75], x))
+plot(seq_along(temp)+1, unlist(lapply(temp, "[", "DB")), type = "b", main="All GF - DB index as a function of number of PC", ylab = "DB index", xaxt="n", xlab = "")
+axis(side = 1, line = 0, at = seq(2,18,1))
+mtext("Number of PC", side = 1, line = 1, at = 1)
+axis(side = 1, at = seq(2,19), labels = round(temp[[1]]$exp.var, 2), line = 3)
+mtext("Explained variance", side = 1, line = 3, at = 1)
+```
+
+```{r cache=T}
+temp <- lapply(lapply(X = 2:18, seq), function(x) PCA.DB(Yanni_sp_pca[gf=="E"& RealTime >= 40 & RealTime <= 75], x))
+plot(seq_along(temp)+1, unlist(lapply(temp, "[", "DB")), type = "b", main="EGF - DB index as a function of number of PC", ylab = "DB index", xlab = "", xaxt="n")
+axis(side = 1, line = 0, at = seq(2,18,1))
+mtext("Number of PC", side = 1, line = 1, at = 0)
+axis(side = 1, at = seq(2,19), labels = round(temp[[1]]$exp.var, 2), line = 3)
+mtext("Explained variance", side = 1, line = 3, at = 0)
+```
+
+```{r cache=T}
+temp <- lapply(lapply(X = 2:18, seq), function(x) PCA.DB(Yanni_sp_pca[gf=="F" & pulse_length==10& RealTime >= 40 & RealTime <= 75], x))
+plot(seq_along(temp)+1, unlist(lapply(temp, "[", "DB")), type = "b", main="FGF - DB index as a function of number of PC", ylab = "DB index", xlab = "", xaxt="n")
+axis(side = 1, line = 0, at = seq(2,18,1))
+mtext("Number of PC", side = 1, line = 1, at = 0)
+axis(side = 1, at = seq(2,19), labels = round(temp[[1]]$exp.var, 2), line = 3)
+mtext("Explained variance", side = 1, line = 3, at = 0)
+```
+
+```{r cache=T}
+temp <- lapply(lapply(X = 2:18, seq), function(x) PCA.DB(Yanni_sp_pca[gf=="N"& RealTime >= 40 & RealTime <= 75], x))
+plot(seq_along(temp)+1, unlist(lapply(temp, "[", "DB")), type = "b", main="NGF - DB index as a function of number of PC", ylab = "DB index", xlab = "", xaxt = "n")
+axis(side = 1, line = 0, at = seq(2,18,1))
+mtext("Number of PC", side = 1, line = 1, at = 0)
+axis(side = 1, at = seq(2,19), labels = round(temp[[1]]$exp.var, 2), line = 3)
+mtext("Explained variance", side = 1, line = 3, at = 0)
+```
 
 # Separability measure along time - AUC
 

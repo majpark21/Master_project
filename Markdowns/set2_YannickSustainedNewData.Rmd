@@ -314,14 +314,21 @@ wrap_perm <- function(x, y, measure, n, na.fill){
 ```
 
 ```{r fig.height=18, fig.width=21, warning=F, cache=T}
-temp <- apply(conditions, 2, function(x) wrap_perm(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", 500, median(Yanni$Ratio)))
+nperm <- 500
+temp <- apply(conditions, 2, function(x) wrap_perm(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", nperm, median(Yanni$Ratio)))
 temp <- temp/max.val
 colnames(temp) <- apply(conditions, 2, paste, collapse=" ; ")
 par(mfrow=c(3,6))
 for(j in 1:ncol(temp)){
   hist(temp[,j], main = colnames(temp)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+  coln <- str_split(colnames(temp)[j], " ; ", simplify = T)
+  abline(v = auc.raw[Cond1==coln[1] & Cond2==coln[2], auc], col = "red", lty = "dashed", lwd = 2)
+  auc.raw[Cond1==coln[1] & Cond2==coln[2], p.val.permut := sum(temp[,j] >= auc)/nperm]
 }
+
+print(auc.raw)
 ```
+
 
 ## Bootstrap per-column
 
@@ -352,12 +359,15 @@ wrap_bootcol <- function(x, y, measure, n, na.fill){
 ```
 
 ```{r warning=F, fig.width=21, fig.height=18, cache=T}
-bootcol <- apply(conditions, 2, function(x) wrap_bootcol(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", 500, median(Yanni$Ratio)))
+nboot <- 500
+bootcol <- apply(conditions, 2, function(x) wrap_bootcol(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", nboot, median(Yanni$Ratio)))
 bootcol <- bootcol/max.val
 colnames(bootcol) <- apply(conditions, 2, paste, collapse=";")
 par(mfrow=c(3,6))
 for(j in 1:ncol(bootcol)){
   hist(bootcol[,j], main = colnames(bootcol)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+  coln <- str_split(colnames(bootcol)[j], " ; ", simplify = T)
+  abline(v = auc.raw[Cond1==coln[1] & Cond2==coln[2], auc], col = "red", lty = "dashed", lwd = 2)
 }
 ```
 
@@ -391,12 +401,14 @@ wrap_bootrow <- function(x, y, measure, n, na.fill){
 ```
 
 ```{r warning=F, fig.width=21, fig.height=18, cache=T}
-bootrow <- apply(conditions, 2, function(x) wrap_bootrow(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", 500, median(Yanni$Ratio)))
+bootrow <- apply(conditions, 2, function(x) wrap_bootrow(Yanni[Condition==x[1]], Yanni[Condition==x[2]], "Ratio", nboot, median(Yanni$Ratio)))
 bootrow <- bootrow/max.val
 colnames(bootrow) <- apply(conditions, 2, paste, collapse=" ; ")
 par(mfrow=c(3,6))
 for(j in 1:ncol(bootrow)){
   hist(bootrow[,j], main = colnames(bootrow)[j], ylab="", xlab = "", cex.main = 3, cex.axis = 3)
+  coln <- str_split(colnames(bootrow)[j], " ; ", simplify = T)
+  abline(v = auc.raw[Cond1==coln[1] & Cond2==coln[2], auc], col = "red", lty = "dashed", lwd = 2)
 }
 ```
 
@@ -414,6 +426,7 @@ auc.raw$ci.low.row <- ci.bootrow[1,]
 auc.raw$ci.high.row <- ci.bootrow[2,]
 auc.raw[, comb.cond := as.factor(paste(Cond1, Cond2, sep = ";"))]
 auc.raw[, GF := as.factor(paste0(str_sub(Cond1,1,1), "GF"))]
+print(auc.raw)
 ```
 
 ```{r fig.width=12, fig.height=4}
