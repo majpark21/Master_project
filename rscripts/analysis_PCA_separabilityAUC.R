@@ -5,50 +5,64 @@ perform.all.analysis <- function(data, measure.var, condition.var, time.var, col
 # --------------
 
 #' Report PCA
-#' 
+#'
 #' A function for running PCA and optionally get plots out of it.
 #'
-#' @param data A data table which contains time series in long format or a numeric matrix with time series per row.
-#' @param what A character vector describing how the data should be handled before running pca, as well as which representations
-#' should be plotted. Valid isntructions are: c("cast.and.pca", "nocast.and.pca", "pca.only", "plot.pca", "plot.variance", "plot.extremes")
-#' If data are a data.table in long format, use "cast.and.pca", if data are in a matrix use "nocast.and.pca".
-#' The "plot.xxx" settings call biplot.PCA and visualize.extremes.PCA.
-#' @param na.fill Value to replace NA after casting data table from wide to long.
-#' @param measure.var Character. Column name of the measurement that defines the time series in time.
-#' @param condition.var Character vector. Column names used for casting from long to wide. Should also contain the name of 
-#' the column used for coloring the PCA plot if requested.
+#' @param data A data table which contains time series in long format or a
+#'   numeric matrix with time series per row.
+#' @param what A character vector describing how the data should be handled
+#'   before running pca, as well as which representations should be plotted.
+#'   Valid isntructions are: c("cast.and.pca", "nocast.and.pca", "pca.only",
+#'   "plot.pca", "plot.variance", "plot.extremes") If data are a data.table in
+#'   long format, use "cast.and.pca", if data are in a matrix use
+#'   "nocast.and.pca". The "plot.xxx" settings call biplot.PCA and
+#'   visualize.extremes.PCA.
+#' @param na.fill Value to replace NA after casting data table from wide to
+#'   long.
+#' @param measure.var Character. Column name of the measurement that defines the
+#'   time series in time.
+#' @param condition.var Character vector. Column names used for casting from
+#'   long to wide. Should also contain the name of the column used for coloring
+#'   the PCA plot if requested.
 #' @param time.var Character. Column name of the time measure.
 #' @param PC Numeric length 2. Which Principal Components to plot?
-#' @param label.color.pca Character or Vector used for coloring PCA. If data is long data.table (i.e. 'what' is set to "cast.and.pca")
-#'  should contain the name of the column used for coloring; note that this column should also be provided in 'condition.var'.
-#'  If data is a matrix (i.e. 'what' is set to "nocast.and.pca') vector of length equal to number of rows in data.
-#' @param center.pca Should variables be centered before running PCA. Default is TRUE.
-#' @param scale.pca Should variables be scaled before running PCA. Default is TRUE, but is susceptible to be changed.
+#' @param label.color.pca Character or Vector used for coloring PCA. If data is
+#'   long data.table (i.e. 'what' is set to "cast.and.pca") should contain the
+#'   name of the column used for coloring; note that this column should also be
+#'   provided in 'condition.var'. If data is a matrix (i.e. 'what' is set to
+#'   "nocast.and.pca') vector of length equal to number of rows in data.
+#' @param center.pca Should variables be centered before running PCA. Default is
+#'   TRUE.
+#' @param scale.pca Should variables be scaled before running PCA. Default is
+#'   TRUE, but is susceptible to be changed.
 #' @param n.extremes Numeric. How many extremes trajectories to plot.
-#' @param ... additional parameters for biplot.PCA and visualize.extremes. For example var.axes=F to remove variable arrows
-#' or tails = "positive" to plot only extremes trajectories on positive tail of the PCs.
+#' @param ... additional parameters for biplot.PCA and visualize.extremes. For
+#'   example var.axes=F to remove variable arrows or tails = "positive" to plot
+#'   only extremes trajectories on positive tail of the PCs.
 #'
-#' @return If 'what' is set to "pca.only", returns PCA object. Otherwise plot PCA result.
+#' @return If 'what' is set to "pca.only", returns PCA object. Otherwise plot
+#'   PCA result.
 #' @export
 #'
 #' @examples
 #' library(data.table)
+#' library(ggplot2)
 #' # Create some dummy data, imagine 10 time series under three conditions A, B or C in a long data.table
 #' number.measure <- 101
 #' mydata <- data.table(Condition = rep(LETTERS[1:3], each = 10*number.measure),
 #'  Label = rep(1:10, each = number.measure),
 #'  Time=rep(seq(0,100), 30))
-#' 
+#'
 #' # A: oscillate around 1 for 10 time units, then shift to oscillation around 1.3
 #' # B: oscillate around 1 for 10 time units, then peak to 1.3 and gets back to 1
 #' # C: oscillate around 1 all along trajectory
-#' 
+#'
 #' mydata[Condition=="A", Measure := c(rnorm(10, 1, 0.05), rnorm(91, 1.3, 0.05)), by = "Label"]
 #' mydata[Condition=="B", Measure := c(rnorm(10, 1, 0.05), rnorm(91, 1.3, 0.05) - seq(0, 0.3, length.out = 91)), by = "Label"]
 #' mydata[Condition=="C", Measure := rnorm(101, 1, 0.05), by = "Label"]
 #' ggplot(mydata, aes(x=Time, y=Measure)) + geom_line(aes(group=Label), alpha = 0.3) + facet_wrap("Condition") +
 #'  stat_summary(fun.y = mean, geom = "line", col = "red", size = 1.25)
-#' 
+#'
 #' report.PCA(mydata, what = c("cast.and.pca", "plot.variance", "plot.pca", "plot.extremes"), measure.var="Measure",
 #' condition.var=c("Condition", "Label"), time.var="Time", label.color.pca = "Condition", PC=c(1,2), n.extremes = 5)
 #' 
