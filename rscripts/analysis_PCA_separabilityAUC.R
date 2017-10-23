@@ -1,20 +1,15 @@
-perform.all.analysis <- function(data, measure.var, condition.var, time.var, color.pca.var, groups.pca = NULL, PC.to.plot = c(1,2), permutation = TRUE, nperm = 100, bootstraps = "both", nboot = 100){
-  
-}
-
-# --------------
-
 #' Report PCA
 #'
-#' A function for running PCA and optionally get plots out of it.
+#' A function for running PCA and optionally get plots out of it and
+#' Davies-Bouldin index.
 #'
 #' @param data A data table which contains time series in long format or a
 #'   numeric matrix with time series per row.
 #' @param what A character vector describing how the data should be handled
 #'   before running pca, as well as which representations should be plotted.
 #'   Valid isntructions are: c("cast.and.pca", "nocast.and.pca", "pca.only",
-#'   "plot.pca", "plot.variance", "plot.extremes") If data are a data.table in
-#'   long format, use "cast.and.pca", if data are in a matrix use
+#'   "plot.pca", "plot.variance", "plot.extremes", "DBindex") If data are a
+#'   data.table in long format, use "cast.and.pca", if data are in a matrix use
 #'   "nocast.and.pca". The "plot.xxx" settings call biplot.PCA and
 #'   visualize.extremes.PCA.
 #' @param na.fill Value to replace NA after casting data table from wide to
@@ -25,7 +20,6 @@ perform.all.analysis <- function(data, measure.var, condition.var, time.var, col
 #'   long to wide. Should also contain the name of the column used for coloring
 #'   the PCA plot if requested.
 #' @param time.var Character. Column name of the time measure.
-#' @param PC Numeric length 2. Which Principal Components to plot?
 #' @param label.color.pca Character or Vector used for coloring PCA. If data is
 #'   long data.table (i.e. 'what' is set to "cast.and.pca") should contain the
 #'   name of the column used for coloring; note that this column should also be
@@ -39,6 +33,10 @@ perform.all.analysis <- function(data, measure.var, condition.var, time.var, col
 #' @param ... additional parameters for biplot.PCA and visualize.extremes. For
 #'   example var.axes=F to remove variable arrows or tails = "positive" to plot
 #'   only extremes trajectories on positive tail of the PCs.
+#' @param PC.biplot Numeric vector of length 2. PCs to use for biplot.
+#' @param PC.extremes Numeric, PC from which to plot
+#' @param PC.db Numeric vector. PC from which computing DBindex
+#' @param group.db
 #'
 #' @return If 'what' is set to "pca.only", returns PCA object. Otherwise plot
 #'   PCA result.
@@ -66,14 +64,15 @@ perform.all.analysis <- function(data, measure.var, condition.var, time.var, col
 #' report.PCA(mydata, what = c("cast.and.pca", "plot.variance", "plot.pca", "plot.extremes"), measure.var="Measure",
 #' condition.var=c("Condition", "Label"), time.var="Time", label.color.pca = "Condition", PC=c(1,2), n.extremes = 5)
 #' 
-report.PCA <- function(data, what, measure.var = NULL, condition.var = NULL, time.var = NULL, PC = c(1,2), na.fill = NULL, label.color.pca = NULL, center.pca = T, scale.pca = T, n.extremes = NULL,...){
+report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "DBindex"), measure.var = NULL, condition.var = NULL, time.var = NULL, PC.db = c(1,2), PC.biplot = c(1,2), PC.extremes = 1, na.fill = NULL, label.color.pca = NULL, group.db = label.color.pca, center.pca = T, scale.pca = F, n.extremes = NULL,...){
   require(ggbiplot)
   # Argument check
-  arg.what <- c("cast.and.pca", "nocast.and.pca", "pca.only", "plot.pca", "plot.variance", "plot.extremes")
+  arg.what <- c("cast.and.pca", "nocast.and.pca", "pca.only", "plot.pca", "plot.variance", "plot.extremes", "DBindex")
   if(!all(what %in% arg.what)) stop(paste('what arguments must be one of', arg.what))
   if(!any(c("cast.and.pca", "nocast.and.pca") %in% what)) stop("One of c('cast.and.pca', 'nocast.and.pca') must be provided. Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
   if(all(c("cast.and.pca", "nocast.and.pca") %in% what)) stop("Only one of c('cast.and.pca', 'nocast.and.pca') must be provided. Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
   if(("data.frame" %in% class(data) & "nocast.and.pca" %in% what) | ("numeric" %in% class(data) & "cast.and.pca" %in% what)) warning("Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
+  if("DBindex" %in% what & length(PC.db) <= 1) stop("At least two components must be used for DBindex. Argument 'PC.db'")
   
   # If data is a long data.table
   if("cast.and.pca" %in% what){
@@ -88,6 +87,18 @@ report.PCA <- function(data, what, measure.var = NULL, condition.var = NULL, tim
   # Stop and return PCA object
   if("pca.only" %in% what) return(pca)
   
+  # Davies-Bouldin index
+  if("DBindex" %in% what){
+    db <- PCA.DB(pca = pca, PC = PC.db, labels.pca = cast$mat[, condition.var], label.cluster = group.db)
+    explained.var <- cumsum(pca$sdev^2L)/sum(pca$sdev^2)
+    explained.var <- explained.var[max(PC.db)]
+    cat(paste0("Davies-Bouldin Index: ", db),
+        paste0("With grouping variable: ", group.db),
+        paste0("Based on PCs: ", paste(PC.db, collapse = ", ")),
+        paste0("Variance explained with these components: ", explained.var),
+        sep = "\n")
+  }
+  
   # Plot explained variance
   if("plot.variance" %in% what) plot(pca)
   
@@ -98,12 +109,12 @@ report.PCA <- function(data, what, measure.var = NULL, condition.var = NULL, tim
     }
     
     if("nocast.and.pca" %in% what){
-      plot(biplot.PCA(pca, label.color.pca, PC = PC, ...))
+      plot(biplot.PCA(pca, label.color.pca, PC = PC.biplot, ...))
     }
     
     else if("cast.and.pca" %in% what & label.color.pca %in% colnames(cast$mat)){
       label.color.pca <- unlist(cast$mat[, label.color.pca])
-      plot(biplot.PCA(pca, label.color.pca, PC = PC, ...))
+      plot(biplot.PCA(pca, label.color.pca, PC = PC.biplot, ...))
     } else {
       stop("'label.color.pca' must be a name of a variable in 'data' and provided in 'condition.var' if data is a data.table. It must be a vector witht the groups if data is a matrix.")
     }
@@ -115,23 +126,28 @@ report.PCA <- function(data, what, measure.var = NULL, condition.var = NULL, tim
       n.extremes <- 3
       warning("n.extremes was not provided and automatically set to 3.")
     }
-    if("cast.and.pca" %in% what) visualize.extremes.PCA(pca, cast$mat2, PC = PC, n = n.extremes, tails = "both", interact=F)
-    else if("nocast.and.pca" %in% what) visualize.extremes.PCA(pca, data, PC = PC, n = n.extremes, tails = "both", interact=F)
+    if("cast.and.pca" %in% what) visualize.extremes.PCA(pca, cast$mat2, PC = PC.extremes, n = n.extremes, tails = "both", interact=F)
+    else if("nocast.and.pca" %in% what) visualize.extremes.PCA(pca, data, PC = PC.extremes, n = n.extremes, tails = "both", interact=F)
   }
 }
 
 
 #' cast.and.fill
 #'
-#' Cast a data table from long to wide and fill missing values. Output is suitable for PCA.
+#' Cast a data table from long to wide and fill missing values. Output is
+#' suitable for PCA.
 #' @param data A data table in long format.
-#' @param condition.var Character vector, names of variables used for rows in casting, define the conditions of the experiment.
+#' @param condition.var Character vector, names of variables used for rows in
+#'   casting, define the conditions of the experiment.
 #' @param time.var Character, name of Time variable used for columns in casting
-#' @param measure.var Character, name of measurement variable, on which PCA is to be performed.
+#' @param measure.var Character, name of measurement variable, on which PCA is
+#'   to be performed.
 #' @param na.fill Numeric, values to replace NAs
 #'
-#' @return Two matrices. "mat" is a wide character matrix which contains the casted "condition.var" as first columns followed by casted measurements.
-#' "mat2" is a numeric wide matrix, which is essentially the same with conditions trimmed.
+#' @return Two matrices. "mat" is a wide character matrix which contains the
+#'   casted "condition.var" as first columns followed by casted measurements.
+#'   "mat2" is a numeric wide matrix, which is essentially the same with
+#'   conditions trimmed.
 #' @export
 #'
 #' @examples
@@ -189,97 +205,34 @@ visualize.extremes.PCA <- function(pca.object, matrix.data, PC, n, tails = "both
 }
 
 
-# --------------
-
-sep.meas.along.time <- function(data1, data2, time.col, measure.col){
-  timev <- unique(data1[, get(time.col)])
-  if(!(identical(unique(data2[, get(time.col)]), timev))) stop("Time vectors must be identical between the two data")
-  out <- separability.measures(data1[get(time.col)==timev[1], get(measure.col)], data2[get(time.col)==timev[1], get(measure.col)])
-  for(t in timev[2:length(timev)]){
-    out <- rbind(out, separability.measures(data1[RealTime==t, get(measure.col)], data2[RealTime==t, get(measure.col)]))
+#' PCA.DB
+#'
+#' Compute the Davies-Bouldin index for a pca clustering. This is used to
+#' quantify how much groups are taken away in PCA space.
+#' @param pca A pca object.
+#' @param PC Which PCs should be used to compute the DB index. Consider only a
+#'   few components to use only leading trends in data.
+#' @param labels.pca A data.table or character matrix with a number of rows
+#'   equal to the number of time series used in pca. Each column contains a
+#'   different label for the associated trajectory. Note that column names must
+#'   be provided.
+#' @param cluster.label The label which is used to group trajectories and hence
+#'   to compute the goodness of clustering via DB. This single character must be
+#'   also provided in labels.pca.
+#'
+#' @return A numeric, the Davies-Bouldin index of the clustering.
+#' @export
+#'
+#' @examples
+PCA.DB <- function(pca, PC, labels.pca, label.cluster){
+  require(RDRToolbox)
+  if(!label.cluster %in% colnames(labels.pca)) stop("'cluster.label' must a single character contained in the column names of 'labels.pca'")
+  PC <- paste0("PC", PC)
+  # Turn pca coordinates into a data table
+  pca_coord <- as.data.table(pca$x)
+  for(label in colnames(labels.pca)){
+    pca_coord[, (label) := labels.pca[,label]]
   }
-  out <- cbind(timev, out)
-  return(out)
-}
-
-
-one.permutation.auc <- function(x, y, metric){
-  n <- nrow(x)
-  m <- nrow(y)
-  temp <- rbind(x, y)
-  samp.traj <- sample(1:nrow(temp), size = n, replace = FALSE)
-  x.resamp <- temp[samp.traj, ]
-  y.resamp <- temp[setdiff(1:nrow(temp), samp.traj), ]
-  
-  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
-  return(sum(unlist(seps[metric, ])))
-}
-
-permutation.auc <- function(x, y, n, metric = "jm"){
-  # x,y: two matrices representing time series, row: trajectory; col: time
-  # n: number of permutations
-  # metric: one of "jm", "bh", "div", "tdiv", "ks"
-  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
-  return(replicate(n, one.permutation.auc(x,y,metric)))
-}
-
-wrap_perm <- function(x, y, measure, n, na.fill){
-  a <- as.matrix(dcast(x, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
-  b <- as.matrix(dcast(y, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
-  a[which(is.na(a))] <- na.fill
-  b[which(is.na(b))] <- na.fill
-  return(permutation.auc(a, b, n))
-}
-
-# --------------
-
-one.bootstrap.auc.percol <- function(x, y, metric){
-  samp.col <- sample(1:ncol(x), size = ncol(x), replace = TRUE)
-  x.resamp <- x[, samp.col]
-  y.resamp <- y[, samp.col]
-  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
-  return(sum(unlist(seps[metric, ])))
-}
-
-bootstrap.auc.percol <- function(x, y, B, metric = "jm"){
-  # x,y: two matrices representing time series, row: trajectory; col: time
-  # B: number of boostraps
-  # metric: one of "jm", "bh", "div", "tdiv", "ks"
-  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
-  return(replicate(B, one.bootstrap.auc.percol(x,y,metric)))
-}
-
-wrap_bootcol <- function(x, y, measure, n, na.fill){
-  a <- as.matrix(dcast(x, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
-  b <- as.matrix(dcast(y, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
-  a[which(is.na(a))] <- na.fill
-  b[which(is.na(b))] <- na.fill
-  return(bootstrap.auc.percol(a, b, n))
-}
-
-# --------------
-
-one.bootstrap.auc.perrow <- function(x, y, metric){
-  samp.rowx <- sample(1:nrow(x), size = nrow(x), replace = TRUE)
-  samp.rowy <- sample(1:nrow(y), size = nrow(y), replace = TRUE)
-  x.resamp <- x[samp.rowx, ]
-  y.resamp <- y[samp.rowy, ]
-  seps <- sapply(1:ncol(x), function(j) separability.measures(x.resamp[, j], y.resamp[, j]))
-  return(sum(unlist(seps[metric, ])))
-}
-
-bootstrap.auc.perrow <- function(x, y, B, metric = "jm"){
-  # x,y: two matrices representing time series, row: trajectory; col: time
-  # B: number of boostraps
-  # metric: one of "jm", "bh", "div", "tdiv", "ks"
-  if(ncol(x) != ncol(y)) stop("x and y must have same number of columns")
-  return(replicate(B, one.bootstrap.auc.perrow(x,y,metric)))
-}
-
-wrap_bootrow <- function(x, y, measure, n, na.fill){
-  a <- as.matrix(dcast(x, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
-  b <- as.matrix(dcast(y, Condition + Label ~ RealTime, value.var = measure)[,-c(1,2)])
-  a[which(is.na(a))] <- na.fill
-  b[which(is.na(b))] <- na.fill
-  return(bootstrap.auc.perrow(a, b, n))
+  db <- DBIndex(data = as.matrix(pca_coord[, ..PC]), labels = unlist(pca_coord[,..label.cluster]))
+  return(db)
 }
