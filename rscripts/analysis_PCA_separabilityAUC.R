@@ -64,7 +64,12 @@
 #' report.PCA(mydata, what = c("cast.and.pca", "plot.variance", "plot.pca", "plot.extremes"), measure.var="Measure",
 #' condition.var=c("Condition", "Label"), time.var="Time", label.color.pca = "Condition", PC=c(1,2), n.extremes = 5)
 #' 
-report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "DBindex"), measure.var = NULL, condition.var = NULL, time.var = NULL, PC.db = c(1,2), PC.biplot = c(1,2), PC.extremes = 1, na.fill = NULL, label.color.pca = NULL, group.db = label.color.pca, center.pca = T, scale.pca = F, n.extremes = NULL,...){
+report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "DBindex"),
+                       measure.var = NULL, condition.var = NULL, time.var = NULL,
+                       center.pca = T, scale.pca = F,
+                       PC.db = c(1,2), var.db = NULL,
+                       PC.biplot = c(1,2), PC.extremes = 1,
+                       na.fill = NULL, label.color.pca = NULL, group.db = label.color.pca, n.extremes = NULL,...){
   require(ggbiplot)
   # Argument check
   arg.what <- c("cast.and.pca", "nocast.and.pca", "pca.only", "plot.pca", "plot.variance", "plot.extremes", "DBindex")
@@ -72,7 +77,6 @@ report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance
   if(!any(c("cast.and.pca", "nocast.and.pca") %in% what)) stop("One of c('cast.and.pca', 'nocast.and.pca') must be provided. Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
   if(all(c("cast.and.pca", "nocast.and.pca") %in% what)) stop("Only one of c('cast.and.pca', 'nocast.and.pca') must be provided. Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
   if(("data.frame" %in% class(data) & "nocast.and.pca" %in% what) | ("numeric" %in% class(data) & "cast.and.pca" %in% what)) warning("Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
-  if("DBindex" %in% what & length(PC.db) <= 1) stop("At least two components must be used for DBindex. Argument 'PC.db'")
   
   # If data is a long data.table
   if("cast.and.pca" %in% what){
@@ -89,9 +93,25 @@ report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance
   
   # Davies-Bouldin index
   if("DBindex" %in% what){
-    db <- PCA.DB(pca = pca, PC = PC.db, labels.pca = cast$mat[, condition.var], label.cluster = group.db)
     explained.var <- cumsum(pca$sdev^2L)/sum(pca$sdev^2)
-    explained.var <- explained.var[max(PC.db)]
+    # If threshold of explained variance is not provided
+    if(is.null(var.db)){
+      if("cast.and.pca" %in% what){
+        db <- PCA.DB(pca = pca, PC = PC.db, labels.pca = cast$mat[, condition.var], label.cluster = group.db)
+      } else if ("nocast.and.pca" %in% what){
+        db <- PCA.DB(pca = pca, PC = PC.db, labels.pca = label.color.pca, label.cluster = label.color.pca)
+      }
+      explained.var <- explained.var[max(PC.db)]
+    } else {
+      # If threshold of explained variance is provided
+      if("cast.and.pca" %in% what){
+        db <- PCA.DB(pca = pca, PCvar = var.db, labels.pca = cast$mat[, condition.var], label.cluster = group.db)
+      } else if ("nocast.and.pca" %in% what){
+        db <- PCA.DB(pca = pca, PCvar = var.db, labels.pca = label.color.pca, label.cluster = label.color.pca)
+      }
+      PC.db <- seq(1, (max(which(explained.var < var.db)) + 1))
+      explained.var <- explained.var[max(which(explained.var < var.db)) + 1]
+    }
     cat(paste0("Davies-Bouldin Index: ", db),
         paste0("With grouping variable: ", group.db),
         paste0("Based on PCs: ", paste(PC.db, collapse = ", ")),
@@ -196,7 +216,7 @@ visualize.extremes.PCA <- function(pca.object, matrix.data, PC, n, tails = "both
     }
   }
   
-  else if(tails=="positive"){
+  else if(tails=="negative"){
     for(i in 1:n){
       plot(matrix.data[ord[i],], type = "l", xlab = "Time", ylab = "Trajectory", main = paste0("Negative Tail - Coord PC", PC, ": ", round(pca.object$x[ord[i], PC], 4)))
       if(interact) readline(prompt="Press [enter] to see next plots")
@@ -224,15 +244,25 @@ visualize.extremes.PCA <- function(pca.object, matrix.data, PC, n, tails = "both
 #' @export
 #'
 #' @examples
-PCA.DB <- function(pca, PC, labels.pca, label.cluster){
+PCA.DB <- function(pca, PC = NULL, PCvar = NULL, labels.pca, label.cluster){
   require(RDRToolbox)
   if(!label.cluster %in% colnames(labels.pca)) stop("'cluster.label' must a single character contained in the column names of 'labels.pca'")
-  PC <- paste0("PC", PC)
-  # Turn pca coordinates into a data table
-  pca_coord <- as.data.table(pca$x)
-  for(label in colnames(labels.pca)){
-    pca_coord[, (label) := labels.pca[,label]]
+  if((is.null(PC) & is.null(PCvar)) | (!is.null(PC) & !is.null(PCvar))) stop("One of PC or PCvar (and one only!) must be provided")
+  
+    # Use provided PC
+  if(is.null(PCvar)){
+    PC <- paste0("PC", PC)
+  } else {
+    # Use as many PC as necessary to reach PCvar explained variance
+    explained.var <- cumsum(pca$sdev^2L)/sum(pca$sdev^2)
+    PC <- max(which(explained.var < PCvar)) + 1
+    PC <- paste0("PC", seq(1,PC))
   }
-  db <- DBIndex(data = as.matrix(pca_coord[, ..PC]), labels = unlist(pca_coord[,..label.cluster]))
+    # Turn pca coordinates into a data table
+    pca_coord <- as.data.table(pca$x)
+    for(label in colnames(labels.pca)){
+      pca_coord[, (label) := labels.pca[,label]]
+    }
+    db <- DBIndex(data = as.matrix(pca_coord[, ..PC]), labels = unlist(pca_coord[,..label.cluster]))
   return(db)
 }
