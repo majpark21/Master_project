@@ -36,7 +36,10 @@
 #' @param PC.biplot Numeric vector of length 2. PCs to use for biplot.
 #' @param PC.extremes Numeric, PC from which to plot
 #' @param PC.db Numeric vector. PC from which computing DBindex
-#' @param group.db
+#' @param group.db A character. Variable to be use as grouping factor when
+#'   computing Davies-Bouldin
+#' @param var.db A numeric between 0 and 1. If provided, Davies-Bouldin will be
+#'   computed on as many PCs as necessary to reach the value.
 #'
 #' @return If 'what' is set to "pca.only", returns PCA object. Otherwise plot
 #'   PCA result.
@@ -103,6 +106,7 @@ report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance
       }
       explained.var <- explained.var[max(PC.db)]
     } else {
+      if(!is.null(PC.db)) warning("Both 'PC.db' and 'var.db' were provided. 'var.db' has been used and 'PC.db' ignored.")
       # If threshold of explained variance is provided
       if("cast.and.pca" %in% what){
         db <- PCA.DB(pca = pca, PCvar = var.db, labels.pca = cast$mat[, condition.var], label.cluster = group.db)
@@ -229,17 +233,17 @@ visualize.extremes.PCA <- function(pca.object, matrix.data, PC, n, tails = "both
 #'
 #' Compute the Davies-Bouldin index for a pca clustering. This is used to
 #' quantify how much groups are taken away in PCA space.
+#'
 #' @param pca A pca object.
 #' @param PC Which PCs should be used to compute the DB index. Consider only a
 #'   few components to use only leading trends in data.
+#' @param PCvar If provided, replace PC. Instead of using a given set of PC,
+#' will use as many as necessary to reach PCvar% of explained variance.
 #' @param labels.pca A data.table or character matrix with a number of rows
 #'   equal to the number of time series used in pca. Each column contains a
 #'   different label for the associated trajectory. Note that column names must
+#' @param label.cluster 
 #'   be provided.
-#' @param cluster.label The label which is used to group trajectories and hence
-#'   to compute the goodness of clustering via DB. This single character must be
-#'   also provided in labels.pca.
-#'
 #' @return A numeric, the Davies-Bouldin index of the clustering.
 #' @export
 #'
