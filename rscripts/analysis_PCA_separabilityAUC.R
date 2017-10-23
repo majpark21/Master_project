@@ -30,9 +30,6 @@
 #' @param scale.pca Should variables be scaled before running PCA. Default is
 #'   TRUE, but is susceptible to be changed.
 #' @param n.extremes Numeric. How many extremes trajectories to plot.
-#' @param ... additional parameters for biplot.PCA and visualize.extremes. For
-#'   example var.axes=F to remove variable arrows or tails = "positive" to plot
-#'   only extremes trajectories on positive tail of the PCs.
 #' @param PC.biplot Numeric vector of length 2. PCs to use for biplot.
 #' @param PC.extremes Numeric, PC from which to plot
 #' @param PC.db Numeric vector. PC from which computing DBindex
@@ -40,6 +37,9 @@
 #'   computing Davies-Bouldin
 #' @param var.db A numeric between 0 and 1. If provided, Davies-Bouldin will be
 #'   computed on as many PCs as necessary to reach the value.
+#' @param ... additional parameters for biplot.PCA and visualize.extremes. For
+#'   example var.axes=F to remove variable arrows or tails = "positive" to plot
+#'   only extremes trajectories on positive tail of the PCs.
 #'
 #' @return If 'what' is set to "pca.only", returns PCA object. Otherwise plot
 #'   PCA result.
@@ -48,24 +48,29 @@
 #' @examples
 #' library(data.table)
 #' library(ggplot2)
-#' # Create some dummy data, imagine 10 time series under three conditions A, B or C in a long data.table
+#' # Create some dummy data, imagine 20 time series under three conditions A, B, C or D in a long data.table
 #' number.measure <- 101
-#' mydata <- data.table(Condition = rep(LETTERS[1:3], each = 10*number.measure),
-#'  Label = rep(1:10, each = number.measure),
-#'  Time=rep(seq(0,100), 30))
+#' mydata <- data.table(Condition = rep(LETTERS[1:4], each = 20*number.measure),
+#'  Label = rep(1:20, each = number.measure),
+#'  Time=rep(seq(0,100), 80))
 #'
 #' # A: oscillate around 1 for 10 time units, then shift to oscillation around 1.3
-#' # B: oscillate around 1 for 10 time units, then peak to 1.3 and gets back to 1
-#' # C: oscillate around 1 all along trajectory
+#' # B: oscillate around 1 for 10 time units, then shift to oscillation around 1.25
+#' # C: oscillate around 1 for 10 time units, then peak to 1.3 and gets back to 1
+#' # D: oscillate around 1 all along trajectory
 #'
 #' mydata[Condition=="A", Measure := c(rnorm(10, 1, 0.05), rnorm(91, 1.3, 0.05)), by = "Label"]
-#' mydata[Condition=="B", Measure := c(rnorm(10, 1, 0.05), rnorm(91, 1.3, 0.05) - seq(0, 0.3, length.out = 91)), by = "Label"]
-#' mydata[Condition=="C", Measure := rnorm(101, 1, 0.05), by = "Label"]
+#' mydata[Condition=="B", Measure := c(rnorm(10, 1, 0.05), rnorm(91, 1.25, 0.05)), by = "Label"]
+#' mydata[Condition=="C", Measure := c(rnorm(10, 1, 0.05), rnorm(91, 1.3, 0.05) - seq(0, 0.3, length.out = 91)), by = "Label"]
+#' mydata[Condition=="D", Measure := rnorm(101, 1, 0.05), by = "Label"]
 #' ggplot(mydata, aes(x=Time, y=Measure)) + geom_line(aes(group=Label), alpha = 0.3) + facet_wrap("Condition") +
 #'  stat_summary(fun.y = mean, geom = "line", col = "red", size = 1.25)
 #'
-#' report.PCA(mydata, what = c("cast.and.pca", "plot.variance", "plot.pca", "plot.extremes"), measure.var="Measure",
-#' condition.var=c("Condition", "Label"), time.var="Time", label.color.pca = "Condition", PC=c(1,2), n.extremes = 5)
+#' report.PCA(mydata, what = c("cast.and.pca", "plot.variance", "plot.pca", "plot.extremes", "DBindex"),
+#' measure.var="Measure", condition.var=c("Condition", "Label"), time.var="Time",
+#' center.pca = T, scale.pca = F,
+#' PC.biplot=c(1,2), label.color.pca = "Condition", var.axes = F, n.extremes = 2,
+#' PC.db = NULL, var.db = 0.8)
 #' 
 report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "DBindex"),
                        measure.var = NULL, condition.var = NULL, time.var = NULL,
@@ -76,7 +81,7 @@ report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance
   require(ggbiplot)
   # Argument check
   arg.what <- c("cast.and.pca", "nocast.and.pca", "pca.only", "plot.pca", "plot.variance", "plot.extremes", "DBindex")
-  if(!all(what %in% arg.what)) stop(paste('what arguments must be one of', arg.what))
+  if(!all(what %in% arg.what)) stop(paste("'what' arguments must be one of:", paste(arg.what, collapse = ", ")))
   if(!any(c("cast.and.pca", "nocast.and.pca") %in% what)) stop("One of c('cast.and.pca', 'nocast.and.pca') must be provided. Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
   if(all(c("cast.and.pca", "nocast.and.pca") %in% what)) stop("Only one of c('cast.and.pca', 'nocast.and.pca') must be provided. Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
   if(("data.frame" %in% class(data) & "nocast.and.pca" %in% what) | ("numeric" %in% class(data) & "cast.and.pca" %in% what)) warning("Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
@@ -100,13 +105,13 @@ report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance
     # If threshold of explained variance is not provided
     if(is.null(var.db)){
       if("cast.and.pca" %in% what){
-        db <- PCA.DB(pca = pca, PC = PC.db, labels.pca = cast$mat[, condition.var], label.cluster = group.db)
+        db <- PCA.DB(pca = pca, PC = PC.db, labels.pca = cast$mat[, condition.var], label.cluster = group.db, PCvar = var.db)
       } else if ("nocast.and.pca" %in% what){
-        db <- PCA.DB(pca = pca, PC = PC.db, labels.pca = label.color.pca, label.cluster = label.color.pca)
+        db <- PCA.DB(pca = pca, PC = PC.db, labels.pca = label.color.pca, label.cluster = label.color.pca, PCvar = var.db)
       }
       explained.var <- explained.var[max(PC.db)]
     } else {
-      if(!is.null(PC.db)) warning("Both 'PC.db' and 'var.db' were provided. 'var.db' has been used and 'PC.db' ignored.")
+      if(!is.null(PC.db)) warning("Both 'PC.db' (with default = c(1,2)) and 'var.db' were provided. The former will be ignored.")
       # If threshold of explained variance is provided
       if("cast.and.pca" %in% what){
         db <- PCA.DB(pca = pca, PCvar = var.db, labels.pca = cast$mat[, condition.var], label.cluster = group.db)
@@ -259,6 +264,7 @@ PCA.DB <- function(pca, PC = NULL, PCvar = NULL, labels.pca, label.cluster){
   } else {
     # Use as many PC as necessary to reach PCvar explained variance
     explained.var <- cumsum(pca$sdev^2L)/sum(pca$sdev^2)
+    if(explained.var[1] > PCvar) stop("'PCvar' is inferior to variance explained by first component.")
     PC <- max(which(explained.var < PCvar)) + 1
     PC <- paste0("PC", seq(1,PC))
   }
