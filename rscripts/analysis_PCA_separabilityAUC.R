@@ -8,9 +8,9 @@
 #' @param what A character vector describing how the data should be handled
 #'   before running pca, as well as which representations should be plotted.
 #'   Valid isntructions are: c("cast.and.pca", "nocast.and.pca", "pca.only",
-#'   "plot.pca", "plot.variance", "plot.extremes", "DBindex") If data are a
-#'   data.table in long format, use "cast.and.pca", if data are in a matrix use
-#'   "nocast.and.pca". The "plot.xxx" settings call biplot.PCA and
+#'   "plot.pca", "plot.variance", "plot.extremes", "plot.loading", "DBindex") If
+#'   data are a data.table in long format, use "cast.and.pca", if data are in a
+#'   matrix use "nocast.and.pca". The "plot.xxx" settings call biplot.PCA and
 #'   visualize.extremes.PCA.
 #' @param na.fill Value to replace NA after casting data table from wide to
 #'   long.
@@ -18,7 +18,9 @@
 #'   time series in time.
 #' @param condition.var Character vector. Column names used for casting from
 #'   long to wide. Should also contain the name of the column used for coloring
-#'   the PCA plot if requested.
+#'   the PCA plot if requested. A combination of these variables must be
+#'   sufficient to identify unambiguously a single trajectroy in long data
+#'   table.
 #' @param time.var Character. Column name of the time measure.
 #' @param label.color.pca Character or Vector used for coloring PCA. If data is
 #'   long data.table (i.e. 'what' is set to "cast.and.pca") should contain the
@@ -31,13 +33,15 @@
 #'   TRUE, but is susceptible to be changed.
 #' @param n.extremes Numeric. How many extremes trajectories to plot.
 #' @param PC.biplot Numeric vector of length 2. PCs to use for biplot.
-#' @param PC.extremes Numeric, PC from which to plot
+#' @param PC.extremes Numeric, PC from which to plot the extreme individuals.
 #' @param PC.db Numeric vector. PC from which computing DBindex
+#' @param PC.loading Numeric, plot loading ('composition') of these PCs.
+#' @param log.loading Logical, should loading be log?
 #' @param group.db A character. Variable to be use as grouping factor when
 #'   computing Davies-Bouldin
 #' @param var.db A numeric between 0 and 1. If provided, Davies-Bouldin will be
 #'   computed on as many PCs as necessary to reach the value.
-#' @param ... additional parameters for biplot.PCA and visualize.extremes. For
+#' @param ... additional parameters for biplot.PCA, visualize.extremes and. For
 #'   example var.axes=F to remove variable arrows or tails = "positive" to plot
 #'   only extremes trajectories on positive tail of the PCs.
 #'
@@ -48,7 +52,7 @@
 #' @examples
 #' library(data.table)
 #' library(ggplot2)
-#' # Create some dummy data, imagine 20 time series under three conditions A, B, C or D in a long data.table
+#' # Create some dummy data, imagine 20 time series under four conditions A, B, C or D in a long data.table
 #' number.measure <- 101
 #' mydata <- data.table(Condition = rep(LETTERS[1:4], each = 20*number.measure),
 #'  Label = rep(1:20, each = number.measure),
@@ -66,21 +70,23 @@
 #' ggplot(mydata, aes(x=Time, y=Measure)) + geom_line(aes(group=Label), alpha = 0.3) + facet_wrap("Condition") +
 #'  stat_summary(fun.y = mean, geom = "line", col = "red", size = 1.25)
 #'
-#' report.PCA(mydata, what = c("cast.and.pca", "plot.variance", "plot.pca", "plot.extremes", "DBindex"),
+#' report.PCA(mydata, what = c("cast.and.pca", "plot.variance", "plot.pca", "plot.extremes", "plot.loading", "DBindex"),
 #' measure.var="Measure", condition.var=c("Condition", "Label"), time.var="Time",
 #' center.pca = T, scale.pca = F,
 #' PC.biplot=c(1,2), label.color.pca = "Condition", var.axes = F, n.extremes = 2,
 #' PC.db = NULL, var.db = 0.8)
 #' 
-report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "DBindex"),
+report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "plot.loading", "DBindex"),
                        measure.var = NULL, condition.var = NULL, time.var = NULL,
                        center.pca = T, scale.pca = F,
                        PC.db = c(1,2), var.db = NULL,
                        PC.biplot = c(1,2), PC.extremes = 1,
+                       PC.loading = PC.biplot, log.loading = F,
                        na.fill = NULL, label.color.pca = NULL, group.db = label.color.pca, n.extremes = NULL,...){
   require(ggbiplot)
+  require(heatmap3)
   # Argument check
-  arg.what <- c("cast.and.pca", "nocast.and.pca", "pca.only", "plot.pca", "plot.variance", "plot.extremes", "DBindex")
+  arg.what <- c("cast.and.pca", "nocast.and.pca", "pca.only", "plot.pca", "plot.variance", "plot.extremes", "plot.loading", "DBindex")
   if(!all(what %in% arg.what)) stop(paste("'what' arguments must be one of:", paste(arg.what, collapse = ", ")))
   if(!any(c("cast.and.pca", "nocast.and.pca") %in% what)) stop("One of c('cast.and.pca', 'nocast.and.pca') must be provided. Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
   if(all(c("cast.and.pca", "nocast.and.pca") %in% what)) stop("Only one of c('cast.and.pca', 'nocast.and.pca') must be provided. Use cast.and.pca for data.table in long format. Use nocast.and.pca for numeric matrix ready for stats::prcomp")
@@ -158,6 +164,15 @@ report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance
     if("cast.and.pca" %in% what) visualize.extremes.PCA(pca, cast$mat2, PC = PC.extremes, n = n.extremes, tails = "both", interact=F)
     else if("nocast.and.pca" %in% what) visualize.extremes.PCA(pca, data, PC = PC.extremes, n = n.extremes, tails = "both", interact=F)
   }
+  
+  # PC loadings plotting
+  if("plot.loading" %in% what){
+    PC.loading <- paste0("PC", PC.loading)
+    loading.mat <- t(pca$rotation[, PC.loading])
+    title <- "PC loadings - Contribution variables to PC"
+    if(log.loading){loading.mat <- log(loading.mat); title <- paste("LOG", title)}
+    heatmap3(loading.mat, Rowv = NA, Colv = NA, scale = "none", xlab = "Time variables", ylab = "Principal Components", main = title)
+  }
 }
 
 
@@ -207,27 +222,28 @@ visualize.extremes.PCA <- function(pca.object, matrix.data, PC, n, tails = "both
   
   ord <- order(pca.object$x[,PC])
   ordd <- rev(ord)
+  xaxis <- as.numeric(rownames(pca.object$rotation))
   if(tails=="both"){
     par(mfrow=c(1,2))
     for(i in 1:n){
       mini <-  min(matrix.data[ord[i],], matrix.data[ordd[i],])
       maxi <- max(matrix.data[ord[i],], matrix.data[ordd[i],])
-      plot(matrix.data[ord[i],], type = "l", ylim = c(mini, maxi), xlab = "Time", ylab = "Trajectory", main = paste0("Negative Tail - Coord PC", PC, ": ", round(pca.object$x[ord[i], PC], 4)))
-      plot(matrix.data[ordd[i],], type = "l", ylim = c(mini, maxi), xlab = "Time", ylab = "Trajectory", main = paste0("Positive Tail - Coord PC", PC, ": ", round(pca.object$x[ordd[i], PC], 4)))
+      plot(xaxis, matrix.data[ord[i],], type = "l", ylim = c(mini, maxi), xlab = "Time", ylab = "Trajectory", main = paste0("Negative Tail - Coord PC", PC, ": ", round(pca.object$x[ord[i], PC], 4)))
+      plot(xaxis, matrix.data[ordd[i],], type = "l", ylim = c(mini, maxi), xlab = "Time", ylab = "Trajectory", main = paste0("Positive Tail - Coord PC", PC, ": ", round(pca.object$x[ordd[i], PC], 4)))
       if(interact) readline(prompt="Press [enter] to see next plots")
     }
   }
   
   else if(tails=="positive"){
     for(i in 1:n){
-      plot(matrix.data[ordd[i],], type = "l", xlab = "Time", ylab = "Trajectory", main = paste0("Positive Tail - Coord PC", PC, ": ", round(pca.object$x[ordd[i], PC], 4)))
+      plot(xaxis, matrix.data[ordd[i],], type = "l", xlab = "Time", ylab = "Trajectory", main = paste0("Positive Tail - Coord PC", PC, ": ", round(pca.object$x[ordd[i], PC], 4)))
       if(interact) readline(prompt="Press [enter] to see next plots")
     }
   }
   
   else if(tails=="negative"){
     for(i in 1:n){
-      plot(matrix.data[ord[i],], type = "l", xlab = "Time", ylab = "Trajectory", main = paste0("Negative Tail - Coord PC", PC, ": ", round(pca.object$x[ord[i], PC], 4)))
+      plot(xaxis, matrix.data[ord[i],], type = "l", xlab = "Time", ylab = "Trajectory", main = paste0("Negative Tail - Coord PC", PC, ": ", round(pca.object$x[ord[i], PC], 4)))
       if(interact) readline(prompt="Press [enter] to see next plots")
     }
   }

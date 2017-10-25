@@ -495,3 +495,106 @@ mat.NGF <- mat.NGF + t(mat.NGF)
 plot(as.dendrogram(hclust(as.dist(mat.NGF))), ylim = c(0,0.3), main = "AUC as distance matrix - NGF")
 ```
 
+
+# Repeat with clean data (and newly implemented functions in package.R)
+
+```{r}
+source("../rscripts/package.R")
+```
+
+```{r}
+Yanni <- fread("C:/Users/pixel/Dropbox/Marc-Antoine/data/set2_Yannick_EGFNGFFGFsust_PC12/combined.data.long/tCoursesSelected_trim200_badTrajRem.csv")
+library(stringr)
+# Create a column with usable names for conditions (XYYY, where E represents the growth factor and YYY its concentration)
+gf <- str_extract(Yanni$group, "[E,F,N]")
+conc <- str_extract(Yanni$group, "(([0-9]+\\.[0-9]*)|([0-9]+))")
+Yanni$Condition <- paste(gf, conc, sep = "-")
+Yanni[, c("id","Condition") := list(as.factor(id), as.factor(Condition))]
+setkey(Yanni, Condition, id)
+setnames(Yanni, c("y", "id", "realtime"), c("Ratio","Label", "RealTime"))
+setcolorder(Yanni, c("Condition", "Label","RealTime", "Ratio", "group"))
+Yanni[, group := NULL]
+rm(gf, conc)
+
+# Trim-axis, normalization fold change per trajectory
+Yanni <- Yanni[RealTime <= 200]
+Yanni <- myNorm(in.dt = Yanni, in.meas.col = "Ratio", in.rt.min = 0, in.rt.max = 36, in.by.cols = c("Condition", "Label"), in.type = "fold.change")
+
+head(Yanni)
+```
+
+```{r fig.width=21, fig.height=12, cache=T}
+ggplot(Yanni, aes(y=Ratio.norm, x=RealTime)) + geom_line(aes(group=Label)) + facet_wrap(~Condition) + stat_summary(fun.y=mean, geom="line", colour = "red", size = 1.5) + theme(text = element_text(size = 25))
+```
+
+# PCA visualization
+
+## Data trimming and fucntion definition
+
+For better separation, we use a trimmed version of the dataset here:
+```{r}
+Yanni_short <- Yanni[RealTime >= 25 & RealTime <= 100]
+Yanni_short[, GF := str_extract(Condition, "[ENF]")]
+Yanni_short[, Conc := str_extract(Condition, "[0-9]+(\\.[0-9]+)?")]
+Yanni_short[, c("GF", "Conc") := list(as.factor(GF), as.factor(Conc))]
+```
+
+```{r fig.width=22, fig.height=12, cache=T, echo=F}
+ggplot(Yanni_short, aes(y=Ratio.norm, x=RealTime)) + geom_line(aes(group=Label)) + facet_wrap(~Condition) + stat_summary(fun.y=mean, geom="line", colour = "red", size = 1.5) + theme(text = element_text(size = 25))
+```
+
+```{r}
+na.filler <- 1.2
+center.pca <- T
+scale.pca <- F
+```
+
+
+## All pooled
+
+```{r}
+report.PCA(data = Yanni_short, what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "plot.loading", "DBindex"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, var.db = 0.8, PC.db = NULL, PC.biplot = c(1,2), PC.extremes = 1, na.fill = na.filler, label.color.pca = "Condition", n.extremes = 5)
+```
+
+```{r}
+report.PCA(data = Yanni_short, what = c("cast.and.pca", "plot.extremes"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, PC.extremes = 2, na.fill = na.filler, n.extremes = 5)
+```
+
+```{r}
+report.PCA(data = Yanni_short, what = c("cast.and.pca", "plot.pca"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, PC.biplot = c(1,2), na.fill = na.filler, label.color.pca = "GF")
+
+report.PCA(data = Yanni_short, what = c("cast.and.pca", "plot.pca"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, PC.biplot = c(1,2), na.fill = na.filler, label.color.pca = "Conc")
+```
+
+## EGF only
+
+```{r}
+report.PCA(data = Yanni_short[GF=="E"], what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes","plot.loading", "DBindex"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, var.db = 0.8, PC.db = NULL, PC.biplot = c(1,2), PC.extremes = 1, na.fill = na.filler, label.color.pca = "Condition", n.extremes = 5)
+```
+
+```{r}
+report.PCA(data = Yanni_short[GF=="E"], what = c("cast.and.pca", "plot.extremes"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, PC.extremes = 2, na.fill = na.filler, n.extremes = 5)
+```
+
+
+## NGF only
+
+```{r}
+report.PCA(data = Yanni_short[GF=="N"], what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "plot.loading", "DBindex"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, var.db = 0.8, PC.db = NULL, PC.biplot = c(1,2), PC.extremes = 1, na.fill = na.filler, label.color.pca = "Condition", n.extremes = 5)
+
+report.PCA(data = Yanni_short[GF=="N"], what = c("cast.and.pca", "plot.extremes"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, PC.extremes = 2, na.fill = na.filler, n.extremes = 5)
+```
+
+
+## FGF only
+
+```{r}
+report.PCA(data = Yanni_short[GF=="F"], what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "plot.loading", "DBindex"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, var.db = 0.8, PC.db = NULL, PC.biplot = c(1,2), PC.extremes = 1, na.fill = na.filler, label.color.pca = "Condition", n.extremes = 5)
+
+report.PCA(data = Yanni_short[GF=="F"], what = c("cast.and.pca", "plot.extremes"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, PC.extremes = 2, na.fill = na.filler, n.extremes = 5)
+```
+
+
+
+
+
