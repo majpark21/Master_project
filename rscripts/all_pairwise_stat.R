@@ -92,6 +92,6 @@ complete.time.series <- function(data, cond.col, lab.col, time.col, time.vector,
   temp <- CJ(Condition=unique(data[[cond.col]]), Label=unique(data[[lab.col]]), RealTime=time.vector)
   temp <- merge(temp, data, by = c(cond.col, lab.col, time.col), all.x = T)
   # 2) Trim the rows that contains only NA (i.e. this combination of Label and Condition does not exist in the real data)
-  out <- temp[, if(!all(is.na(meas.col))) .SD, by = .(Condition, Label)]
+  out <- temp[, if(!all(is.na(get(meas.col)))) .SD, by = .(Condition, Label)]
   return(out)
 }

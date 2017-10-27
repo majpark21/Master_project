@@ -527,9 +527,9 @@ head(Yanni)
 ggplot(Yanni, aes(y=Ratio.norm, x=RealTime)) + geom_line(aes(group=Label)) + facet_wrap(~Condition) + stat_summary(fun.y=mean, geom="line", colour = "red", size = 1.5) + theme(text = element_text(size = 25))
 ```
 
-# PCA visualization
+## PCA visualization
 
-## Data trimming and fucntion definition
+### Data trimming and fucntion definition
 
 For better separation, we use a trimmed version of the dataset here:
 ```{r}
@@ -550,7 +550,7 @@ scale.pca <- F
 ```
 
 
-## All pooled
+### All pooled
 
 ```{r}
 report.PCA(data = Yanni_short, what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "plot.loading", "DBindex"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, var.db = 0.8, PC.db = NULL, PC.biplot = c(1,2), PC.extremes = 1, na.fill = na.filler, label.color.pca = "Condition", n.extremes = 5)
@@ -566,7 +566,7 @@ report.PCA(data = Yanni_short, what = c("cast.and.pca", "plot.pca"), measure.var
 report.PCA(data = Yanni_short, what = c("cast.and.pca", "plot.pca"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, PC.biplot = c(1,2), na.fill = na.filler, label.color.pca = "Conc")
 ```
 
-## EGF only
+### EGF only
 
 ```{r}
 report.PCA(data = Yanni_short[GF=="E"], what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes","plot.loading", "DBindex"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, var.db = 0.8, PC.db = NULL, PC.biplot = c(1,2), PC.extremes = 1, na.fill = na.filler, label.color.pca = "Condition", n.extremes = 5)
@@ -577,7 +577,7 @@ report.PCA(data = Yanni_short[GF=="E"], what = c("cast.and.pca", "plot.extremes"
 ```
 
 
-## NGF only
+### NGF only
 
 ```{r}
 report.PCA(data = Yanni_short[GF=="N"], what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "plot.loading", "DBindex"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, var.db = 0.8, PC.db = NULL, PC.biplot = c(1,2), PC.extremes = 1, na.fill = na.filler, label.color.pca = "Condition", n.extremes = 5)
@@ -586,7 +586,7 @@ report.PCA(data = Yanni_short[GF=="N"], what = c("cast.and.pca", "plot.extremes"
 ```
 
 
-## FGF only
+### FGF only
 
 ```{r}
 report.PCA(data = Yanni_short[GF=="F"], what = c("cast.and.pca", "plot.pca", "plot.variance", "plot.extremes", "plot.loading", "DBindex"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, var.db = 0.8, PC.db = NULL, PC.biplot = c(1,2), PC.extremes = 1, na.fill = na.filler, label.color.pca = "Condition", n.extremes = 5)
@@ -594,7 +594,88 @@ report.PCA(data = Yanni_short[GF=="F"], what = c("cast.and.pca", "plot.pca", "pl
 report.PCA(data = Yanni_short[GF=="F"], what = c("cast.and.pca", "plot.extremes"), measure.var = "Ratio.norm", condition.var = c("Condition","Label","GF","Conc"), time.var = "RealTime", center.pca = center.pca, scale.pca = scale.pca, PC.extremes = 2, na.fill = na.filler, n.extremes = 5)
 ```
 
+## Separability measure along time - AUC
+
+```{r}
+library(plyr)
+# Get all pairs of conditions
+conditions_EGF <- combn(as.character(unique(Yanni[, Condition]))[1:4], m = 2)
+conditions_FGF <- combn(as.character(unique(Yanni[, Condition]))[5:8], m = 2)
+conditions_NGF <- combn(as.character(unique(Yanni[, Condition]))[9:12], m = 2)
+
+conditions <- cbind(conditions_EGF, conditions_NGF, conditions_FGF)
+rm(conditions_EGF, conditions_FGF, conditions_NGF)
+```
+
+Add NA when missing time points and impute the missing values
+
+```{r}
+library(imputeTS)
+Yanni_NA <- complete.time.series(data = Yanni, cond.col = "Condition", lab.col = "Label", time.col = "RealTime", time.vector = unique(Yanni$RealTime), meas.col = "Ratio", fill = NA)
+Yanni_NA[, c("Ratio", "Ratio.norm") := list(na.interpolation(Ratio), na.interpolation(Ratio.norm)), by = c("Condition", "Label")]
+```
+
+```{r}
+# Compute separabilities of conditions at each time point
+sep.meas.raw <- apply(conditions, 2, function(x) sep.meas.along.time(Yanni_NA[Condition==x[1]],  Yanni_NA[Condition==x[2]], "RealTime", "Ratio" ))
+names(sep.meas.raw) <- apply(conditions, 2, function(x) paste(x[1], x[2], sep = ","))
+for(i in 1:length(sep.meas.raw)){
+  temp <- unlist(strsplit(names(sep.meas.raw)[i], ","))
+  sep.meas.raw[[i]]$Cond1 <- temp[1]
+  sep.meas.raw[[i]]$Cond2 <- temp[2]
+}
+sep.meas.raw <- as.data.table(rbind.fill(sep.meas.raw))
+sep.meas.raw[, c("Cond1", "Cond2") := list(factor(Cond1, levels = levels(Yanni_NA$Condition)), factor(Cond2, levels = levels(Yanni_NA$Condition)))]
+```
+
+```{r fig.width=21, fig.height=12}
+ggplot(sep.meas.raw, aes(x= timev, y = jm)) + geom_line() + facet_wrap(~Cond1 + Cond2, ncol = 6) + theme(text=element_text(size=25)) + ylab("Jeffries-Matusita [0, sqrt(2)]") + geom_vline(xintercept=40, colour="blue", linetype="longdash") + ggtitle("Separability along time - Raw value")
+```
+
+```{r}
+max.val <- length(unique(sep.meas.raw$timev)) * sqrt(2)
+auc.raw <- sep.meas.raw[, .(auc = sum(jm, na.rm = T)/max.val), by = c("Cond1", "Cond2")]
+auc.raw
+```
 
 
+## Hierarchical clustering using AUC as distance metric
 
+```{r}
+# Reshape to "diagonal"
+dist.raw <- dcast(data=auc.raw[,1:3], formula = Cond1 ~ Cond2, value.var = "auc")
+row_nams <- c(dist.raw[,1])$Cond1
+dist.raw <- dist.raw[,-1]
+dist.raw
+
+# Isolate EGF, go to square symmetric matrix
+temp <- as.matrix(dist.raw[1:3,1:3])
+rownames(temp) <- row_nams[1:3]
+indices <- unique(c(rownames(temp), colnames(temp)))
+mat.EGF <- matrix(0, nrow=length(indices), ncol=length(indices),dimnames = list(indices,indices))
+mat.EGF[upper.tri(mat.EGF, diag = F)] <- temp[upper.tri(temp, diag=T)]
+mat.EGF <- mat.EGF + t(mat.EGF)
+# Hierarchical clustering
+plot(as.dendrogram(hclust(as.dist(mat.EGF))), ylim = c(0,0.3), main = "AUC as distance matrix - EGF")
+
+# Isolate FGF, go to square symmetric matrix
+temp <- as.matrix(dist.raw[4:6,4:6])
+rownames(temp) <- row_nams[4:6]
+indices <- unique(c(rownames(temp), colnames(temp)))
+mat.FGF <- matrix(0, nrow=length(indices), ncol=length(indices),dimnames = list(indices,indices))
+mat.FGF[upper.tri(mat.FGF, diag = F)] <- temp[upper.tri(temp, diag=T)]
+mat.FGF <- mat.FGF + t(mat.FGF)
+# Hierarchical clustering
+plot(as.dendrogram(hclust(as.dist(mat.FGF))), ylim = c(0,0.3), main = "AUC as distance matrix - FGF")
+
+# Isolate NGF, go to square symmetric matrix
+temp <- as.matrix(dist.raw[7:9,7:9])
+rownames(temp) <- row_nams[7:9]
+indices <- unique(c(rownames(temp), colnames(temp)))
+mat.NGF <- matrix(0, nrow=length(indices), ncol=length(indices),dimnames = list(indices,indices))
+mat.NGF[upper.tri(mat.NGF, diag = F)] <- temp[upper.tri(temp, diag=T)]
+mat.NGF <- mat.NGF + t(mat.NGF)
+# Hierarchical clustering
+plot(as.dendrogram(hclust(as.dist(mat.NGF))), ylim = c(0,0.3), main = "AUC as distance matrix - NGF")
+```
 
