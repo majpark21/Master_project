@@ -117,6 +117,36 @@ sim_phase_shifted <- function(n, noise, freq = 1, end = 100, return.wide = F){
 }
 
 
+sim_phase_shifted_damped <- function(n, noise, dampen_params, freq = 1, end = 100){
+  # A fucntion to simulate a population of n noisy sinusoidals that are phase shifted
+  # n: number of sinusoids
+  # freq: sampling rate (in time unit)
+  # noise: standard deviation phaseshift
+  # end: end time of simulations
+  # dampen_params: c(initial amplitude, dampen rate)
+  
+  require(data.table)
+  
+  # Create a matrix of shifted times 
+  tvec <- seq(0, end-1, by = freq)
+  time_matrix <- matrix(tvec, nrow = length(tvec), ncol = n)
+  shifts <- rnorm(n, 0, noise)
+  shifts <- matrix(shifts, nrow = length(tvec), ncol = n, byrow = T)
+  time_matrix <- time_matrix + shifts
+  
+  # Replace each shifted time by it sine function
+  sins <- sin(time_matrix) * dampen_params[1] * exp(-dampen_params[2]*time_matrix)
+  
+  # Go to data.table
+  sins <- as.data.table(sins)
+  sins <- cbind(seq(0, end-1, by = freq), sins)
+  colnames(sins)[1] <- "Time"
+  # Format long data table
+  sins <- melt(sins, id.vars = "Time")
+  return(sins)
+}
+
+
 sim_phase_shifted_with_fixed_trend <- function(n, noise, slope, freq = 1, end = 100){
   # Add a trend, i.e. a linear increase or decrease, to simulations
   # See sim_phase_shifted for arguments. Slope indicates the slope of the trend (change of mean value per unit of time)
@@ -151,6 +181,36 @@ sim_noisy_amplitude <- function(n, noise, freq = 1, end = 100, return.wide = F){
   sins <- melt(sins, id.vars = "Time")
   return(sins)
 }
+
+
+sim_noisy_amplitude_damped <- function(n, noise, dampen_params, freq = 1, end = 100){
+  # A fucntion to simulate a population of n noisy sinusoidals that are phase shifted
+  # n: number of sinusoids
+  # freq: sampling rate (in time unit)
+  # noise: standard deviation phaseshift
+  # end: end time of simulations
+  # dampen_params: c(initial amplitude, dampen rate)
+  
+  require(data.table)
+  
+  # Create a matrix of times and noise
+  tvec <- seq(0, end-1, by = freq)
+  time_matrix <- matrix(tvec, nrow = length(tvec), ncol = n)
+  noise_matrix <- replicate(n, rnorm(length(tvec), 0, noise))
+  
+  # Replace each shifted time by it sine function
+  sins <- sin(time_matrix) * dampen_params[1] * exp(-dampen_params[2]*time_matrix)
+  sins <- sins + noise_matrix
+  
+  # Go to data.table
+  sins <- as.data.table(sins)
+  sins <- cbind(seq(0, end-1, by = freq), sins)
+  colnames(sins)[1] <- "Time"
+  # Format long data table
+  sins <- melt(sins, id.vars = "Time")
+  return(sins)
+}
+
 
 
 sim_expodecay_lagged_stim <- function(n, noise, interval.stim = 5, lambda = 0.2, freq = 1, end = 100, return.wide = F){
@@ -212,30 +272,37 @@ multi_sims <- function(type, noises, ...){
   # noises: numeric vector with noise value, DO NOT PASS 0, as it is already used to initialize the output
   # ps: phase shifted
   # pst: phase shifted with linear trend
+  # psd: phase shifted damped
   # na: noisy amplitude
+  # nad: noisy amplitude damped
   # edls: expo decay lagged stimulation
   
-  if(!(type %in% c("ps", "pst", "na", "edls"))){
-    stop("type must be one of c('ps', 'pst', 'na', 'edls')")
+  if(!(type %in% c("ps", "pst", "psd", "na", "nad", "edls"))){
+    stop("type must be one of c('ps', 'pst', 'psd', 'na', 'nad', 'edls')")
   }
   
   # Initialize data.table with no noise
   if(type == "ps"){multi_sim <- sim_phase_shifted(noise = 0, ...)}
   else if(type == "pst"){multi_sim <- sim_phase_shifted_with_fixed_trend(noise = 0, ...)}
+  else if(type == "psd"){multi_sim <- sim_phase_shifted_damped(noise = 0, ...)}
   else if(type == "na"){multi_sim <- sim_noisy_amplitude(noise = 0, ...)}
+  else if(type == "nad"){multi_sim <- sim_noisy_amplitude_damped(noise = 0, ...)}
   else if(type == "edls"){multi_sim <- sim_expodecay_lagged_stim(noise = 0, ...)}
   
   multi_sim$noise <- 0
   for(noise in noises){
     if(type == "ps"){temp <- sim_phase_shifted(noise = noise, ...)}
     else if(type == "pst"){temp <- sim_phase_shifted_with_fixed_trend(noise = noise, ...)}
+    else if(type == "psd"){temp <- sim_phase_shifted_damped(noise = noise, ...)}
     else if(type == "na"){temp <- sim_noisy_amplitude(noise = noise, ...)}
+    else if(type == "nad"){temp <- sim_noisy_amplitude_damped(noise = noise, ...)}
     else if(type == "edls"){temp <- sim_expodecay_lagged_stim(noise = noise, ...)}
     temp$noise <- noise
     multi_sim <- rbind(multi_sim, temp)
   }
   return(multi_sim)
 }
+
 
 
 plot_sim <- function(data, x = "Time", y = "value", group = "variable", use.facet = T, facet = "noise", alpha = 0.2){
@@ -685,3 +752,123 @@ ggplot(cc.stim, aes(x = noise, y = lag)) + geom_boxplot(aes(group=noise))
 ```
 
 We see that CC is much less sensitive to noise in amplitude than to noise in lag before response.
+
+
+# Long-term trend regression
+
+We introduce damped sinusoids simulations with noise in phase and a linear decrease.
+
+```{r fig.height=21}
+# psd: phase_shifted_damped, dampen_params: c(inital amplitude, decay rate)
+nad <- multi_sims(type = "nad", noises = noises, n = n, dampen_params = c(1, 0.01))
+# Add linear trend
+nad[, value := value + seq(0, -0.5, length.out = 100)]
+# Moving average
+nad[, moving_average := rollex(x = value, k = 6), by = c("noise", "variable")]
+plot_sim(nad) + scale_y_continuous(limits = c(-1.5,1.5))
+```
+
+We want try 2 different metrics for estimating the long-term decrease: the slope of linear regression of moving average, and the slope after maxima fitting:
+
+## Linear regression of moving average
+
+```{r, fig.height=21}
+slope_ma <- nad[, .(slope = coef(lm(moving_average ~ Time))[2]), by = c("noise", "variable")]
+ggplot(slope_ma, aes(x=as.factor(noise),y=slope)) + geom_boxplot(aes(fill=noise)) + theme(text = element_text(size = 45)) + ggtitle("Slopes from moving average")
+```
+
+## Regression on maxima
+
+```{r}
+detect.maxima <- function(x, window.size){
+  require(zoo)
+  if(window.size %% 2 == 0) stop("window size must be odd")
+  middle <- ceiling(window.size / 2)
+  xz <- as.zoo(x)
+  out <- rollapply(x, window.size, function(x) which.max(x) == middle)
+  out <- c(rep(NA, middle-1), out, rep(NA, middle-1))
+  return(out)
+}
+
+detect.minima <- function(x, window.size){
+  require(zoo)
+  if(window.size %% 2 == 0) stop("window size must be odd")
+  middle <- ceiling(window.size / 2)
+  xz <- as.zoo(x)
+  out <- rollapply(x, window.size, function(x) which.min(x) == middle)
+  out <- c(rep(NA, middle-1), out, rep(NA, middle-1))
+  return(out)
+}
+
+wrap_max_reg <- function(traj, window.size, min.index, max.index, robust = F){
+  # min.index, max.index delimits the region of interest where we are looking for maxima
+  
+  # 0) Adjust window size to an odd number
+  if(window.size == 10){window.size <- 9}
+  else if(window.size == 20){window.size <- 19}
+  
+  # 1) Where are the maxima
+  max.pos <- which(detect.maxima(traj, window.size))
+  # Keep only maxima occuring at time > min.index
+  max.pos <- max.pos[max.pos >= min.index & max.pos <= max.index]
+  nber <- length(max.pos)
+  max.traj <- traj[max.pos]
+  
+  # 2) Perform the fitting
+  # If no maxima detected, run simple linear regression, not only on maxima (not robust as this results in an error)
+  if(robust){
+    require(mblm)
+    fit <- try(mblm(max.traj ~ max.pos))
+    if(class(fit)== "try-error"){
+      nber <- numeric(0)
+      fit <- lm(traj ~ seq_along(traj))
+    }
+    p.val <- try(coef(summary(fit))[2, "Pr(>|V|)"])
+  } else {
+    fit <- try(lm(max.traj ~ max.pos))
+    if(class(fit)== "try-error"){
+      nber <- numeric(0)
+      fit <- lm(traj ~ seq_along(traj))
+    }
+    p.val <- try(coef(summary(fit))[2, "Pr(>|t|)"])
+  }
+
+  # p-values not return for regression performed on small vectors
+  if(class(p.val) == "try-error") p.val <- 2
+  
+  return(list(coeff = fit$coefficients[2], p.val = p.val, nber.max = nber))
+}
+```
+
+```{r fig.height = 21}
+kwindow = 5
+mini = 0
+maxi = 1e6
+robust = F
+
+reg.max <- nad[, .(reg.slope = wrap_max_reg(value, kwindow, mini, maxi, robust)$coeff,
+                   p.val = wrap_max_reg(value, kwindow, mini, maxi, robust)$p.val,
+                   nber.max = wrap_max_reg(value, kwindow, mini, maxi, robust)$nber.max),
+                   by = c("noise", "variable")]
+
+ggplot(reg.max, aes(x=as.factor(noise),y=reg.slope)) + geom_boxplot(aes(fill=noise)) + theme(text = element_text(size = 45)) + ggtitle("Slopes")
+ggplot(reg.max, aes(x=as.factor(noise),y=nber.max)) + geom_boxplot(aes(fill=noise)) + theme(text = element_text(size = 25)) + ggtitle("Number of maxima detected")
+```
+
+With robust fitting:
+
+```{r warning=F, fig.height=21}
+kwindow = 5
+mini = 0
+maxi = 1e6
+robust = T
+
+reg.max <- nad[, .(reg.slope = wrap_max_reg(value, kwindow, mini, maxi, robust)$coeff,
+                   p.val = wrap_max_reg(value, kwindow, mini, maxi, robust)$p.val,
+                   nber.max = wrap_max_reg(value, kwindow, mini, maxi, robust)$nber.max),
+                   by = c("noise", "variable")]
+
+ggplot(reg.max, aes(x=as.factor(noise),y=reg.slope)) + geom_boxplot(aes(fill=noise)) + theme(text = element_text(size = 45)) + ggtitle("Slopes")
+ggplot(reg.max, aes(x=as.factor(noise),y=nber.max)) + geom_boxplot(aes(fill=noise)) + theme(text = element_text(size = 25)) + ggtitle("Number of maxima detected")
+```
+

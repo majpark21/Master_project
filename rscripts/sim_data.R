@@ -1,3 +1,52 @@
+multi_sims <- function(type, noises, ...){
+  # /!\ not optimized, growing data table
+  # Generate multiple simulations of the indicated type.
+  # noises: numeric vector with noise value, DO NOT PASS 0, as it is already used to initialize the output
+  # ps: phase shifted
+  # pst: phase shifted with linear trend
+  # psd: phase shifted damped
+  # na: noisy amplitude
+  # nad: noisy amplitude damped
+  # edls: expo decay lagged stimulation
+  
+  if(!(type %in% c("ps", "pst", "psd", "na", "nad", "edls"))){
+    stop("type must be one of c('ps', 'pst', 'psd', 'na', 'nad', 'edls')")
+  }
+  
+  # Initialize data.table with no noise
+  if(type == "ps"){multi_sim <- sim_phase_shifted(noise = 0, ...)}
+  else if(type == "pst"){multi_sim <- sim_phase_shifted_with_fixed_trend(noise = 0, ...)}
+  else if(type == "psd"){multi_sim <- sim_phase_shifted_damped(noise = 0, ...)}
+  else if(type == "na"){multi_sim <- sim_noisy_amplitude(noise = 0, ...)}
+  else if(type == "nad"){multi_sim <- sim_noisy_amplitude_damped(noise = 0, ...)}
+  else if(type == "edls"){multi_sim <- sim_expodecay_lagged_stim(noise = 0, ...)}
+  
+  multi_sim$noise <- 0
+  for(noise in noises){
+    if(type == "ps"){temp <- sim_phase_shifted(noise = noise, ...)}
+    else if(type == "pst"){temp <- sim_phase_shifted_with_fixed_trend(noise = noise, ...)}
+    else if(type == "psd"){temp <- sim_phase_shifted_damped(noise = noise, ...)}
+    else if(type == "na"){temp <- sim_noisy_amplitude(noise = noise, ...)}
+    else if(type == "nad"){temp <- sim_noisy_amplitude_damped(noise = noise, ...)}
+    else if(type == "edls"){temp <- sim_expodecay_lagged_stim(noise = noise, ...)}
+    temp$noise <- noise
+    multi_sim <- rbind(multi_sim, temp)
+  }
+  return(multi_sim)
+}
+
+
+plot_sim <- function(data, x = "Time", y = "value", group = "variable", use.facet = T, facet = "noise", alpha = 0.2){
+  require(ggplot2)
+  p <- ggplot(data, aes_string(x = x, y = y)) + geom_line(aes_string(group = group), alpha = alpha)
+  p <- p + stat_summary(fun.y=mean, geom="line", colour = "blue", size = 1.5)
+  if(use.facet){
+    p <- p + facet_grid(as.formula(paste(facet, "~ .")))
+  }
+  p
+}
+
+
 sim_phase_shifted <- function(n, noise, freq = 1, end = 100, return.wide = F){
   # A fucntion to simulate a population of n noisy sinusoidals that are phase shifted
   # n: number of sinusoids
@@ -27,6 +76,36 @@ sim_phase_shifted <- function(n, noise, freq = 1, end = 100, return.wide = F){
     return(sins)  
   }
   
+  # Format long data table
+  sins <- melt(sins, id.vars = "Time")
+  return(sins)
+}
+
+
+sim_phase_shifted_damped <- function(n, noise, dampen_params, freq = 1, end = 100){
+  # A fucntion to simulate a population of n noisy sinusoidals that are phase shifted
+  # n: number of sinusoids
+  # freq: sampling rate (in time unit)
+  # noise: standard deviation phaseshift
+  # end: end time of simulations
+  # dampen_params: c(initial amplitude, dampen rate)
+  
+  require(data.table)
+  
+  # Create a matrix of shifted times 
+  tvec <- seq(0, end-1, by = freq)
+  time_matrix <- matrix(tvec, nrow = length(tvec), ncol = n)
+  shifts <- rnorm(n, 0, noise)
+  shifts <- matrix(shifts, nrow = length(tvec), ncol = n, byrow = T)
+  time_matrix <- time_matrix + shifts
+  
+  # Replace each shifted time by it sine function
+  sins <- sin(time_matrix) * dampen_params[1] * exp(-dampen_params[2]*time_matrix)
+  
+  # Go to data.table
+  sins <- as.data.table(sins)
+  sins <- cbind(seq(0, end-1, by = freq), sins)
+  colnames(sins)[1] <- "Time"
   # Format long data table
   sins <- melt(sins, id.vars = "Time")
   return(sins)
@@ -63,6 +142,34 @@ sim_noisy_amplitude <- function(n, noise, freq = 1, end = 100, return.wide = F){
     return(sins)  
   }
   
+  # Format long data table
+  sins <- melt(sins, id.vars = "Time")
+  return(sins)
+}
+
+sim_noisy_amplitude_damped <- function(n, noise, dampen_params, freq = 1, end = 100){
+  # A fucntion to simulate a population of n noisy sinusoidals that are phase shifted
+  # n: number of sinusoids
+  # freq: sampling rate (in time unit)
+  # noise: standard deviation phaseshift
+  # end: end time of simulations
+  # dampen_params: c(initial amplitude, dampen rate)
+  
+  require(data.table)
+  
+  # Create a matrix of times and noise
+  tvec <- seq(0, end-1, by = freq)
+  time_matrix <- matrix(tvec, nrow = length(tvec), ncol = n)
+  noise_matrix <- replicate(n, rnorm(length(tvec), 0, noise))
+  
+  # Replace each shifted time by it sine function
+  sins <- sin(time_matrix) * dampen_params[1] * exp(-dampen_params[2]*time_matrix)
+  sins <- sins + noise_matrix
+  
+  # Go to data.table
+  sins <- as.data.table(sins)
+  sins <- cbind(seq(0, end-1, by = freq), sins)
+  colnames(sins)[1] <- "Time"
   # Format long data table
   sins <- melt(sins, id.vars = "Time")
   return(sins)
@@ -121,45 +228,3 @@ sim_expodecay_lagged_stim <- function(n, noise, interval.stim = 5, lambda = 0.2,
   return(trajs)
 }
 
-
-multi_sims <- function(type, noises, ...){
-  # /!\ not optimized, growing data table
-  # Generate multiple simulations of the indicated type.
-  # noises: numeric vector with noise value, DO NOT PASS 0, as it is already used to initialize the output
-  # ps: phase shifted
-  # pst: phase shifted with linear trend
-  # na: noisy amplitude
-  # edls: expo decay lagged stimulation
-  
-  if(!(type %in% c("ps", "pst", "na", "edls"))){
-    stop("type must be one of c('ps', 'pst', 'na', 'edls')")
-  }
-  
-  # Initialize data.table with no noise
-  if(type == "ps"){multi_sim <- sim_phase_shifted(noise = 0, ...)}
-  else if(type == "pst"){multi_sim <- sim_phase_shifted_with_fixed_trend(noise = 0, ...)}
-  else if(type == "na"){multi_sim <- sim_noisy_amplitude(noise = 0, ...)}
-  else if(type == "edls"){multi_sim <- sim_expodecay_lagged_stim(noise = 0, ...)}
-  
-  multi_sim$noise <- 0
-  for(noise in noises){
-    if(type == "ps"){temp <- sim_phase_shifted(noise = noise, ...)}
-    else if(type == "pst"){temp <- sim_phase_shifted_with_fixed_trend(noise = noise, ...)}
-    else if(type == "na"){temp <- sim_noisy_amplitude(noise = noise, ...)}
-    else if(type == "edls"){temp <- sim_expodecay_lagged_stim(noise = noise, ...)}
-    temp$noise <- noise
-    multi_sim <- rbind(multi_sim, temp)
-  }
-  return(multi_sim)
-}
-
-
-plot_sim <- function(data, x = "Time", y = "value", group = "variable", use.facet = T, facet = "noise", alpha = 0.2){
-  require(ggplot2)
-  p <- ggplot(data, aes_string(x = x, y = y)) + geom_line(aes_string(group = group), alpha = alpha)
-  p <- p + stat_summary(fun.y=mean, geom="line", colour = "blue", size = 1.5)
-  if(use.facet){
-    p <- p + facet_grid(as.formula(paste(facet, "~ .")))
-  }
-  p
-}
