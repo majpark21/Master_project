@@ -1,5 +1,5 @@
 all_pairwise_stats <- function(data, condition, label, measure, k_roll_mean = 5){
-  # Compute all pairwise measures: overlap_clipping and correlations (Pearson, Spearman, Kendall)
+  # Compute all pairwise measures: DTW, overlap_clipping and correlations (Pearson, Spearman, Kendall)
   # The clipping of trajectories is performed as first step
   
   # data: a data table containing CLIPPED trajectories
@@ -15,6 +15,7 @@ all_pairwise_stats <- function(data, condition, label, measure, k_roll_mean = 5)
   }
   
   require(data.table)
+  require(dtw)
   setkeyv(data, c(condition, label))
   
   # Perform clipping
@@ -29,8 +30,8 @@ all_pairwise_stats <- function(data, condition, label, measure, k_roll_mean = 5)
 
   
   # One row = one pair in one condition; set column types according to input types
-  out <- data.table(matrix(ncol = 7, nrow = nber_row))
-  colnames(out) <- c(condition, "Label1", "Label2", "Overlap", "Pearson", "Spearman", "Kendall")
+  out <- data.table(matrix(ncol = 8, nrow = nber_row))
+  colnames(out) <- c(condition, "Label1", "Label2", "Overlap", "Pearson", "Spearman", "Kendall", "DTW")
   if(class(data[,get(condition)]) == "integer"){out[[condition]] <- as.integer(out[[condition]])}
   else if(class(data[,get(condition)]) == "numeric"){out[[condition]] <- as.numeric(out[[condition]])}
   else if(class(data[,get(condition)]) == "character"){out[[condition]] <- as.character(out[[condition]])}
@@ -54,11 +55,11 @@ all_pairwise_stats <- function(data, condition, label, measure, k_roll_mean = 5)
     out[, Label2 := as.factor(Label2)]
   }
   
-  
   out[, Overlap := as.numeric(Overlap)]
   out[, Pearson := as.numeric(Pearson)]
   out[, Spearman := as.numeric(Spearman)]
   out[, Kendall := as.numeric(Kendall)]
+  out[, DTW := as.numeric(DTW)]
   
   curr_row <- 1L
   # Loop condition
@@ -76,6 +77,7 @@ all_pairwise_stats <- function(data, condition, label, measure, k_roll_mean = 5)
         set(out, curr_row, 5L, cor(data[.(i, labels[j]), get(measure)], data[.(i, labels[k]), get(measure)], method ="pearson"))
         set(out, curr_row, 6L, cor(data[.(i, labels[j]), get(measure)], data[.(i, labels[k]), get(measure)], method ="spearman"))
         set(out, curr_row, 7L, cor(data[.(i, labels[j]), get(measure)], data[.(i, labels[k]), get(measure)], method ="kendall"))
+        set(out, curr_row, 8L, dtw(data[.(i, labels[j]), get(measure)], data[.(i, labels[k]), get(measure)])$distance)
         curr_row <- curr_row + 1L
       }
     }
