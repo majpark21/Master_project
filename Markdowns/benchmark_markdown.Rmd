@@ -457,6 +457,19 @@ pst_mean <- dist_mean(data = pst, condition = cond, tcol = ti, measure = mea, la
 na_mean <- dist_mean(data = na, condition = cond, tcol = ti, measure = mea, label = lab, return.mean = F)
 ```
 
+```{r, fig.height=10, echo=F}
+library(ggplot2)
+library(gridExtra)
+
+theme_update(plot.title = element_text(hjust = 0.5), text = element_text(size=15))
+
+p1 <- ggplot(ps_mean, aes(x=noise, y=euclid_to_mean)) + geom_boxplot(aes(group=noise)) + ggtitle("Phase Shifted")
+p2 <- ggplot(pst_mean, aes(x=noise, y=euclid_to_mean)) + geom_boxplot(aes(group=noise)) + ggtitle("Phase Shifted with Trend")
+p3 <- ggplot(na_mean, aes(x=noise, y=euclid_to_mean)) + geom_boxplot(aes(group=noise)) + ggtitle("Noisy Amplitude")
+grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+
 # Pairwise Distances: Overlap clipping, Correlations Pearson, Spearman, Kendall
 
 For each condition, take each pair of trajectories and compute the correlations between them (Pearson, Spearman and Kendall). In addition it clips the trajectories by comparison with their rolling means: whenever the trajectory is above its rolling mean, set it to 1 otherwise to 0. Finally for each pair of trajectories, the "overlap" metric, represents how often the trajectories of the pair have same value (i.e. 0.5 if complete random, 1 if they fully overlap).

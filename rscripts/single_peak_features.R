@@ -192,9 +192,9 @@ FeatAllFeat <- function(y, basal, start.lag.grow, end.exp.dec, ...){
   minmax <- FeatDiffMinMax(y)
   amplitude <- FeatMaxAmplitude(y, basal = basal)
   fwhm <- FeatFWHM(y, basal = basal, ...)
-  grow.half.max <- FeatHalfMaxGrow(y, ...)
+  grow.half.max <- FeatHalfMaxGrow(y, basal = basal, ...)
   grow.lag <- FeatLagGrow(y, start = start.lag.grow)
-  dec.half.max <- FeatHalfMaxDec(y, ...)
+  dec.half.max <- FeatHalfMaxDec(y, basal = basal, ...)
   dec.exp <- FeatExpDec(y, end = end.exp.dec)
   return(list(mini = minmax$min,
               maxi = minmax$max,
