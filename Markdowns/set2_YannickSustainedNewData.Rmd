@@ -679,3 +679,115 @@ mat.NGF <- mat.NGF + t(mat.NGF)
 plot(as.dendrogram(hclust(as.dist(mat.NGF))), ylim = c(0,0.3), main = "AUC as distance matrix - NGF")
 ```
 
+
+## Coefficient variation (CV) along time
+
+### Non robust: sd/mean
+
+```{r}
+coeff.var <- Yanni_NA[, .(mean.raw = mean(Ratio),
+                       sd.raw = sd(Ratio),
+                       mean.norm = mean(Ratio.norm),
+                       sd.norm = sd(Ratio.norm)),
+                       by = c("Condition", "RealTime")]
+coeff.var[, c("coeff.raw", "coeff.norm") := list(sd.raw/mean.raw, sd.norm/mean.norm)]
+
+ggplot(coeff.var, aes(x = RealTime, y = coeff.raw)) + geom_line() + facet_wrap("Condition") + ggtitle("Coefficient of variation - Raw data")
+```
+
+```{r}
+ggplot(coeff.var, aes(x = RealTime, y = coeff.norm)) + geom_line() + facet_wrap("Condition") + ggtitle("Coefficient of variation - Normalized data")
+```
+
+### Robust: median/IQR
+
+```{r}
+coeff.var.robust <- Yanni[, .(med.raw = median(Ratio),
+                       iqr.raw = IQR(Ratio, na.rm = T),
+                       med.norm = median(Ratio.norm),
+                       iqr.norm = IQR(Ratio.norm, na.rm = T)),
+                       by = c("Condition", "RealTime")]
+
+coeff.var.robust[, c("coeff.raw", "coeff.norm") := list(iqr.raw/med.raw, iqr.norm/med.norm)]
+
+ggplot(coeff.var.robust, aes(x = RealTime, y = coeff.raw)) + geom_line() + facet_wrap("Condition") + ggtitle("Robust Coefficient of variation - Raw data")
+```
+
+```{r}
+ggplot(coeff.var.robust, aes(x = RealTime, y = coeff.norm)) + geom_line() + facet_wrap("Condition") + ggtitle("Robust Coefficient of variation - Normalized data")
+```
+
+
+## Image compressibility
+
+### Derivative neighbors in ordered matrix
+
+Idea is similar to CV along time: in a heatmap similar trajectories are grouped together resulting in regions of low-complexity. High complexity is at the interface of clusters or within ill-defined clusters. Here we simply compute the difference between neighboring rows of the heatmap, without accounting for difference in rows (we care about difference between trajectories, not within trajectories). In a heatmap image representation, this is equivalent to linear filetring to get y-gradient.
+
+This is not using heatmap image explicetly, but does the following:
+
+* Perform clustering on the trajectories, this clustering could be then used to reorder rows for heatmap representation
+* Instead of plotting a heatmap here, simply reorder the data according to clustering order.
+* Compute a "y-derivative" with difference of 1 (i.e. with closest neighbor)
+* The result is in the form of a partial y-derivative matrix
+* (clip small deviations)
+* Extract useful stats out of that matrix
+
+```{r}
+Yanni_wide <- dcast(data = Yanni_NA[,c("Condition", "Label", "RealTime", "Ratio.norm")], formula = Condition + Label ~ RealTime, value.var = "Ratio.norm")
+```
+
+
+```{r cache=T, fig.width=11}
+distance <- "euclidean"
+clust.meth <- "complete"
+n <- 40
+thresh.clip <- 0.02
+nresample <- 2000
+
+result <- data.table(matrix(0, nrow = 1, ncol = 10))
+names(result) <- c("Condition", "Sample", "sum", "mean", "median", "min", "max", "sum.clipped", "mean.clipped", "median.clipped")
+
+flist <- list(sum, mean, median, min, max)
+flist2 <- list(sum, mean, median)
+for(lev in levels(Yanni_wide$Condition)){
+  subset.dat <- Yanni_wide[Condition == lev]
+  for(i in 1:nresample){
+    temp <- sample(x = 1:nrow(subset.dat), size = n, replace = F)
+    tempdat <- subset.dat[temp,]
+    # Hclust to get row orders
+    clust <- hclust(d = dist(tempdat[,-c(1,2)], method = distance), method = clust.meth)
+    image_Yanni <- as.matrix(tempdat[clust$order, -c(1,2)])
+    
+    # Quantization step?
+    
+    # y-partial derivative
+    # Matrix shifted by one, to perform differential by matrix computation, padded with 1 to keep same dimensions
+    diff.mat <- rbind(image_Yanni[-1,], image_Yanni[1,])
+    diff.mat <- abs(diff.mat - image_Yanni)
+    
+    temp <- sapply(flist, function(f) f(diff.mat))
+    # Clip diff smaller than 2%
+    diff.mat <- diff.mat[!diff.mat <= thresh.clip]
+    temp2 <- sapply(flist2, function(f) f(diff.mat))
+    
+    newrow <- matrix(c(lev, i, temp, temp2), nrow=1, ncol=10)
+    result <- rbind(result, newrow, use.names=F)
+  }
+}
+
+result <- result[-1]
+for(col in names(result)[-c(1,2)]) set(result, j = col, value = as.numeric(result[[col]]))
+```
+
+```{r fig.width=12, fig.height=21}
+library(stringr)
+result.melt <- melt(result, id.vars = c("Condition", "Sample"))
+result.melt[, variable := factor(variable, levels = c("sum", "sum.clipped", "mean", "mean.clipped", "median", "median.clipped", "min", "max"))]
+result.melt[, GF := str_extract(Condition, "[ENF]")]
+ggplot(result.melt, aes(x=Condition, y=value)) +
+  geom_boxplot(aes(fill=GF)) +
+  facet_wrap("variable", ncol=2, scales = "free_y")
+```
+
+

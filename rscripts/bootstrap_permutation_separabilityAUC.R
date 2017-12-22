@@ -18,15 +18,16 @@
 #'
 #' @examples
 sep.meas.along.time <- function(data1, data2, time.col, measure.col){
-  timev <- unique(data1[, get(time.col)])
-  if(!(identical(unique(data2[, get(time.col)]), timev))) stop("Time vectors must be identical between the two data")
+  timev <- sort(unique(data1[, get(time.col)]))
+  if(!(identical(sort(unique(data2[, get(time.col)])), timev))) stop("Time vectors must be identical between the two data")
   out <- separability.measures(data1[get(time.col)==timev[1], get(measure.col)], data2[get(time.col)==timev[1], get(measure.col)])
   for(t in timev[2:length(timev)]){
-    out <- rbind(out, separability.measures(data1[RealTime==t, get(measure.col)], data2[RealTime==t, get(measure.col)]))
+    out <- rbind(out, separability.measures(data1[get(time.col)==t, get(measure.col)], data2[get(time.col)==t, get(measure.col)]))
   }
   out <- cbind(timev, out)
   return(out)
 }
+
 
 # from:
 # https://stats.stackexchange.com/a/78855/43610

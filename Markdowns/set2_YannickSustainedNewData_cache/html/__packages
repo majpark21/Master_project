@@ -5,3 +5,6 @@ stringr
 plyr
 scales
 ggbiplot
+heatmap3
+RDRToolbox
+imputeTS

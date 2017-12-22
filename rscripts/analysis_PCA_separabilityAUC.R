@@ -103,7 +103,7 @@ report.PCA <- function(data, what = c("cast.and.pca", "plot.pca", "plot.variance
   }
   
   # Stop and return PCA object
-  if("pca.only" %in% what) return(pca)
+  if("pca.only" %in% what) return(list(matrix=cast$mat, pca=pca))
   
   # Davies-Bouldin index
   if("DBindex" %in% what){
