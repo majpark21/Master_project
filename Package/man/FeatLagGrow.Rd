@@ -7,13 +7,14 @@
 FeatLagGrow(y, start)
 }
 \arguments{
-\item{y}{numeric, typically measured variable, data must be normalized!}
+\item{y}{numeric, typically measured variable}
 
 \item{start}{int, at which index should the regression start.}
 }
 \value{
-Slope of the linear regression
+Slope of the linear regression, estimator of the growth rate.
 }
 \description{
+Estimate growth rate of the peak.
 Fit a linear model on the growing phase, starting at specified time, til max of the peak.
 }

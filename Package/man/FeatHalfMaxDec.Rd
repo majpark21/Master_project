@@ -7,14 +7,18 @@
 FeatHalfMaxDec(y, ...)
 }
 \arguments{
-\item{y}{numeric, typically measured variable, data must be normalized!}
+\item{y}{numeric, typically measured variable.}
 
-\item{...}{extra arguments for FeatFWHM}
+\item{...}{extra arguments for FeatFWHM. Notably 'basal' for setting base of the peak around 0.}
 }
 \value{
-Slope of the linear regression
+Slope of the linear regression, estimator of the decay rate.
 }
 \description{
+Estimate decay rate of the peak.
 Fit a linear model on descending phase of a peak between (possibly interpolated) time at which maximum of the peak is reached
 and half-max of the peak is reached. The fit is enforced to pass through the peak maximum.
+}
+\seealso{
+FeatFWHM, FeatExpDec
 }

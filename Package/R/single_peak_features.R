@@ -1,12 +1,58 @@
-##############################################################################
-# Functions to extract features from single peak signal                      #
-# All functions are build to work on a simple numerical vector, named y      #
-# Preprocessing step, like normaliation is not handled by these functions    #
-##############################################################################
+###########################################################################
+# Functions to extract features from single peak signal                   #
+# All functions are build to work on a simple numerical vector, named y   #
+###########################################################################
 
 
 #### Extract All Features ####
 
+#' FeatAllFeat
+#'
+#' Extract all single-peak features
+#' @param y a numerical vector from which features are extracted.
+#' @param basal a normalization constant to bring base of the peak around 0.
+#' @param start.lag.grow Index of y where ascending phase starts. See FeatLagGrow, argument 'start'.
+#' @param end.exp.dec Index of y where descending phase ends. See FeatExpDec, argument 'end'.
+#' @param ... Additional arguments for FeatFWHM.
+#'
+#' @return A list of 13 features:
+#' \itemize{
+#'   \item mini: minimum of y
+#'   \item maxi: maximum of y
+#'   \item diff.min.max: difference maxi-mini
+#'   \item time.min: index of y where it is minimized
+#'   \item time.max: index of y where it is maximized
+#'   \item max.amp: amplitude of peak. Obtained by subtracting constant basal. See FeatMaxAmplitude.
+#'   \item FWHM: Full-Width at Half maximum. Difference right-left. See FeatFWHM.
+#'   \item left: time where half maximum of the peak is reached on its left flank.
+#'   \item right: time where half maximum of the peak is reached on its right flank.
+#'   \item grow.half,grow.lag: growth rate estimated by the slope of a linear regression of the ascending phase of the peak. 2 different methods are used to isolate this phase.
+#'   First, it is defined as the time between which the signal has reached half of its maximum (left) and its maximum; see FeatHalfMaxGrow.
+#'   Second, as the time between a hard-encoded starting time point (start.lag.grow) and peak maximum; see FeatLagGrow.
+#'   \item dec.half,dec.exp: decay rate estimated by the slope of a linear regression of the descending phase of the peak. 2 different methods are used to isolate this phase.
+#'   First, it is defined as the time between which the signal has reached its maximum and half of its maximum (right); see FeatHalfMaxDec.
+#'   Second, as the time between peak maximum and a hard-encoded endtime point (start.lag.grow); see FeatExpDec. In this case the signal is modelled by EXPONENTIAL DECAY.
+#' }
+#'
+#' @export
+#'
+#' @examples
+#' signal <- dnorm(x = seq(-4,4, length.out = 500), mean = 0, sd = 1)
+#' feats <- FeatAllFeat(y = signal, basal = 0, start.lag.grow = 100, end.exp.dec = 400)
+#' plot(signal)
+#' # Half-maximum points
+#' abline(h = max(signal)/2, col = "green")
+#' abline(v = c(feats$left, feats$right), col = c("blue", "red"))
+#'
+#' # Growth and Decay slopes according to half-max methods
+#' growth0 = c(feats$left, max(signal)/2)
+#' growth1 = c(which.max(signal), max(signal)/2 + feats$grow.half * (which.max(signal)-feats$left))
+#' segments(x0 = growth0[1], y0 = growth0[2], x1 = growth1[1], y1 = growth1[2], col = "blue", lwd = 4, lty = "dashed")
+#'
+#' decay0 = c(which.max(signal), max(signal))
+#' decay1 = c(feats$right, max(signal) + feats$dec.half * (feats$right-which.max(signal)))
+#' segments(x0 = growth0[1], y0 = growth0[2], x1 = growth1[1], y1 = growth1[2], col = "blue", lwd = 4, lty = "dashed")
+#'
 FeatAllFeat <- function(y, basal, start.lag.grow, end.exp.dec, ...){
   minmax <- FeatDiffMinMax(y)
   amplitude <- FeatMaxAmplitude(y, basal = basal)
@@ -98,7 +144,8 @@ FeatMaxAmplitude <- function(y, basal = 1){
 #' x_spline <- mySpline(seq_along(x), x, 3*length(x))
 #' plot(seq_along(x), x)
 #' plot(x_spline$x, x_spline$y, type = "b")
-mySpline <- function(x, y , n){
+#'
+mySpline <- function(x, y, n){
   fit <- spline(x, y, n)
   x2 <- c(x, fit$x)
   y2 <- c(y, fit$y)
@@ -111,14 +158,15 @@ mySpline <- function(x, y , n){
 #' Find Full Width at Half maximum by spline interpolation
 #'
 #' @param x numeric, typically time vector
-#' @param y numeric, typically measured variable!
-#' @param n numeric, number of points returned by interpolation. Increase improves accuracy.
+#' @param y numeric, typically a signal recorded over time at x.
+#' @param n numeric, number of points returned by interpolation. Increase improves accuracy of FWHM estimation.
 #' @param method one of "minimum" or "walk". Walk method is highly recommended as it avoids many pitfalls
 #' of the minimum method. Minimum simply pick the points which values are the closest to the half of the max value.
 #' Walk method walks left and right from the maximum point, and stops whenever half max value is crossed.
-#' Data must be normalized, such that "basal" represents the activity out of excitation.
-#' @return A list of 3: left and right represent the value of x at which half of the maximum in y is reached.
-#' fwhm is the difference between left and right
+#' @param basal Normalization constant to bring base of the signal at 0.
+#'
+#' @return A list of 3: left and right represent the value of interpolated x at which half of the maximum in y is reached.
+#' fwhm is the difference between right and left.
 #'
 FeatFWHM <- function(y, x = seq_along(y), n = 30*length(x), method = "walk", basal = min(y)){
   if(!method %in% c("walk", "minimum")) stop("Method must be one of c('walk','minimum')")
@@ -163,12 +211,14 @@ FeatFWHM <- function(y, x = seq_along(y), n = 30*length(x), method = "walk", bas
 
 #' FeatHalfMaxDec
 #'
+#' Estimate decay rate of the peak.
 #' Fit a linear model on descending phase of a peak between (possibly interpolated) time at which maximum of the peak is reached
 #' and half-max of the peak is reached. The fit is enforced to pass through the peak maximum.
-#' @param y numeric, typically measured variable, data must be normalized!
-#' @param ... extra arguments for FeatFWHM
+#' @param y numeric, typically measured variable.
+#' @param ... extra arguments for FeatFWHM. Notably 'basal' for setting base of the peak around 0.
 #'
-#' @return Slope of the linear regression
+#' @return Slope of the linear regression, estimator of the decay rate.
+#' @seealso FeatFWHM, FeatExpDec
 #' @export
 #'
 FeatHalfMaxDec <- function(y, ...){
@@ -196,12 +246,14 @@ FeatHalfMaxDec <- function(y, ...){
 
 #' FeatExpDec
 #'
+#' Estimate decay rate of the peak.
 #' Fit a linear model on the descending phase, using exponential decay model.
 #' The fit is performed betwenn peak maximum and til the index specified by end and is enforced to pass through peak maximum.
-#' @param y numeric, typically measured variable, data must be normalized!
+#' @param y numeric, typically measured variable!
 #' @param end int, at which index should the regression end.
 #'
-#' @return slope of the linear regression
+#' @return slope of the linear regression, estimator of the decay rate.
+#' @seealso FeatHalfMaxDec
 #' @export
 #'
 FeatExpDec <- function(y,end){
@@ -217,11 +269,12 @@ FeatExpDec <- function(y,end){
 
 #' FeatLagGrow
 #'
+#' Estimate growth rate of the peak.
 #' Fit a linear model on the growing phase, starting at specified time, til max of the peak.
-#' @param y numeric, typically measured variable, data must be normalized!
+#' @param y numeric, typically measured variable
 #' @param start int, at which index should the regression start.
 #'
-#' @return Slope of the linear regression
+#' @return Slope of the linear regression, estimator of the growth rate.
 #' @export
 #'
 FeatLagGrow <- function(y, start){
@@ -235,12 +288,14 @@ FeatLagGrow <- function(y, start){
 
 #' FeatHalfMaxGrow
 #'
+#' Estimate growth rate of the peak.
 #' Fit a linear model on growing phase of a peak between (possibly interpolated) time at which half-max of the peak is reached
 #' and maximum of the peak
-#' @param y numeric, typically measured variable, data must be normalized!
-#' @param ... extra arguments for FeatFWHM
+#' @param y numeric, typically measured variable.
+#' @param ... extra arguments for FeatFWHM. Notably 'basal' for setting base of the peak around 0.
 #'
-#' @return Slope of the linear regression
+#' @return Slope of the linear regression, estimator of the growth rate.
+#' @seealso FeatFWHM, FeatLagGrow
 #' @export
 #'
 FeatHalfMaxGrow <- function(y, ...){

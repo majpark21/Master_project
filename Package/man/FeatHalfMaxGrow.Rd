@@ -7,14 +7,18 @@
 FeatHalfMaxGrow(y, ...)
 }
 \arguments{
-\item{y}{numeric, typically measured variable, data must be normalized!}
+\item{y}{numeric, typically measured variable.}
 
-\item{...}{extra arguments for FeatFWHM}
+\item{...}{extra arguments for FeatFWHM. Notably 'basal' for setting base of the peak around 0.}
 }
 \value{
-Slope of the linear regression
+Slope of the linear regression, estimator of the growth rate.
 }
 \description{
+Estimate growth rate of the peak.
 Fit a linear model on growing phase of a peak between (possibly interpolated) time at which half-max of the peak is reached
 and maximum of the peak
+}
+\seealso{
+FeatFWHM, FeatLagGrow
 }

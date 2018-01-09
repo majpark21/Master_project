@@ -29,4 +29,5 @@ x <- sin(seq(0,5,0.75))
 x_spline <- mySpline(seq_along(x), x, 3*length(x))
 plot(seq_along(x), x)
 plot(x_spline$x, x_spline$y, type = "b")
+
 }
