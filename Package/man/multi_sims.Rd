@@ -35,13 +35,17 @@ Typical values ranges from 0 to 2.}
 \item{...}{Additional arguments specific to simulation type. See corresponding sim_X functions.}
 }
 \value{
-a data.table containing the trajectories in long format in 4 columns. "variable" indicates the ID of the trajectory at "noise" level.
+a data.table containing the trajectories in long format in 4 columns. "variable" indicates the ID of the trajectory. IDs are named V1, V2, ..., Vn for each level of noise.
 }
 \description{
 Generate artificial oscillating time series of various types.
 }
+\details{
+See ?sim_phase_shifted.
+}
 \note{
 TODO - function is not optimized: it builds the simulation by growing a data.table.
+plot_sim can be used to visualize the output.
 }
 \examples{
 x <- multi_sims(type = "ps", noises = seq(0.5, 2, 0.5), n = 10, freq = 0.5, end = 30)
