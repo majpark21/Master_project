@@ -4,7 +4,7 @@
 \alias{FeatMaxAmplitude}
 \title{FeatMaxAmplitude}
 \usage{
-FeatMaxAmplitude(y, basal = 1)
+FeatMaxAmplitude(y, basal = min(y))
 }
 \arguments{
 \item{y}{a numerical vector}
@@ -20,4 +20,8 @@ list of 2:
 }
 \description{
 Subtracts a constant value to a vector and return the maximum value of the difference.
+}
+\details{
+Interest over FetDiffMinMax, is that min(y) might be an outlier, or not really at the base of the peak.
+If basal = min(y); the result is strictly equivalent to FeatDiffMinMax.
 }

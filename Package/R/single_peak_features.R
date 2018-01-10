@@ -109,6 +109,8 @@ FeatDiffMinMax <- function(y){
 #' @param y a numerical vector
 #' @param basal value to be subtracted for the signal to obtain height of the peak as amplitude instead of absolute value
 #'
+#' @details Interest over FetDiffMinMax, is that min(y) might be an outlier, or not really at the base of the peak.
+#' If basal = min(y); the result is strictly equivalent to FeatDiffMinMax.
 #' @return list of 2:
 #' \itemize{
 #'   \item max: maximum value of y after subtracting basal from it.
@@ -116,7 +118,7 @@ FeatDiffMinMax <- function(y){
 #' }
 #' @export
 #'
-FeatMaxAmplitude <- function(y, basal = 1){
+FeatMaxAmplitude <- function(y, basal = min(y)){
   # Shift the data to have basal at 0, this is important so that maximum peak is measured in amplitude instead of absolute value
   y <- y - basal
   return(list(max = max(y), time.max = which.max(y)))
