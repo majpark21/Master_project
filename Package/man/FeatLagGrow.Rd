@@ -15,6 +15,6 @@ FeatLagGrow(y, start)
 Slope of the linear regression, estimator of the growth rate.
 }
 \description{
-Estimate growth rate of the peak.
-Fit a linear model on the growing phase, starting at specified time, til max of the peak.
+Estimate growth rate of the peak. Fit a linear model on the growing phase,
+starting at specified time, til max of the peak.
 }

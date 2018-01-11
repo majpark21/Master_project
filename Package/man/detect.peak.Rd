@@ -11,10 +11,12 @@ detect.peak(x, window.size, what = "maxi")
 
 \item{window.size}{integer, width of rolling window.}
 
-\item{what}{character indicating whether maxima or minima should be looked for. One of c('maxi', 'mini').}
+\item{what}{character indicating whether maxima or minima should be looked
+for. One of c('maxi', 'mini').}
 }
 \value{
-A logical vector. TRUE indicates a local maxima/minima. NAs are padded at the extremeties to keep same length as x.
+A logical vector. TRUE indicates a local maxima/minima. NAs are
+  padded at the extremeties to keep same length as x.
 }
 \description{
 Detect peaks by identifying local maxima in a rolling window.
@@ -22,7 +24,7 @@ Detect peaks by identifying local maxima in a rolling window.
 \examples{
 x <- sin(seq(0,25,0.1))
 plot(x)
-abline(v = which(detect.maxima(x, 7)), col = 'red', lty = 'dashed')
-abline(v = which(detect.minima(x, 7)), col = 'blue', lty = 'dashed')
+abline(v = which(detect.peak(x, 7, "maxi")), col = 'red', lty = 'dashed')
+abline(v = which(detect.peak(x, 7, "mini")), col = 'blue', lty = 'dashed')
 
 }

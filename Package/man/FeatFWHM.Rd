@@ -12,17 +12,21 @@ FeatFWHM(y, x = seq_along(y), n = 30 * length(x), method = "walk",
 
 \item{x}{numeric, typically time vector}
 
-\item{n}{numeric, number of points returned by interpolation. Increase improves accuracy of FWHM estimation.}
+\item{n}{numeric, number of points returned by interpolation. Increase
+improves accuracy of FWHM estimation.}
 
-\item{method}{one of "minimum" or "walk". Walk method is highly recommended as it avoids many pitfalls
-of the minimum method. Minimum simply pick the points which values are the closest to the half of the max value.
-Walk method walks left and right from the maximum point, and stops whenever half max value is crossed.}
+\item{method}{one of "minimum" or "walk". Walk method is highly recommended
+as it avoids many pitfalls of the minimum method. Minimum simply pick the
+points which values are the closest to the half of the max value. Walk
+method walks left and right from the maximum point, and stops whenever half
+max value is crossed.}
 
 \item{basal}{Normalization constant to bring base of the signal at 0.}
 }
 \value{
-A list of 3: left and right represent the value of interpolated x at which half of the maximum in y is reached.
-fwhm is the difference between right and left.
+A list of 3: left and right represent the value of interpolated x at
+  which half of the maximum in y is reached. fwhm is the difference between
+  right and left.
 }
 \description{
 Find Full Width at Half maximum by spline interpolation

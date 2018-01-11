@@ -9,19 +9,19 @@ FeatMaxAmplitude(y, basal = min(y))
 \arguments{
 \item{y}{a numerical vector}
 
-\item{basal}{value to be subtracted for the signal to obtain height of the peak as amplitude instead of absolute value}
+\item{basal}{value to be subtracted for the signal to obtain height of the
+peak as amplitude instead of absolute value}
 }
 \value{
-list of 2:
-\itemize{
-  \item max: maximum value of y after subtracting basal from it.
-  \item time.max: index at which $max is reached.
-}
+list of 2: \itemize{ \item max: maximum value of y after subtracting
+  basal from it. \item time.max: index at which $max is reached. }
 }
 \description{
-Subtracts a constant value to a vector and return the maximum value of the difference.
+Subtracts a constant value to a vector and return the maximum value of the
+difference.
 }
 \details{
-Interest over FetDiffMinMax, is that min(y) might be an outlier, or not really at the base of the peak.
-If basal = min(y); the result is strictly equivalent to FeatDiffMinMax.
+Interest over FetDiffMinMax, is that min(y) might be an outlier, or
+  not really at the base of the peak. If basal = min(y); the result is
+  strictly equivalent to FeatDiffMinMax.
 }

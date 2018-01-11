@@ -31,28 +31,37 @@ sim_expodecay_lagged_stim(n, noise, interval.stim = 5, lambda = 0.2,
 
 \item{end}{numeric, end time of simulations.}
 
-\item{damp_params}{numeric vector of 2, for dampening parameters of the form c(initial amplitude, decay rate).
-Used in sim_phase_shifted_damped and sim_noisy_amplitude_damped. See details.}
+\item{damp_params}{numeric vector of 2, for dampening parameters of the form
+c(initial amplitude, decay rate). Used in sim_phase_shifted_damped and
+sim_noisy_amplitude_damped. See details.}
 
-\item{slope}{numeric, slope of linear trend, i.e. change of mean value per unit of time.}
+\item{slope}{numeric, slope of linear trend, i.e. change of mean value per
+unit of time.}
 
-\item{interval.stim}{Time interval between stimulations. Used in sim_expodecay_lagged_stim only.}
+\item{interval.stim}{Time interval between stimulations. Used in
+sim_expodecay_lagged_stim only.}
 
-\item{lambda}{Desintegration rate. Used in sim_expodecay_lagged_stim only. See details.}
+\item{lambda}{Desintegration rate. Used in sim_expodecay_lagged_stim only.
+See details.}
 }
 \value{
-a data.table containing the trajectories in long format in 3 columns. "variable" indicates the ID of the trajectory.
+a data.table containing the trajectories in long format in 3 columns.
+  "variable" indicates the ID of the trajectory.
 }
 \description{
-Set of functions to simulate different types of oscillating trajectories. To generate data with different noise levels, use multi_sim.
+Set of functions to simulate different types of oscillating trajectories. To
+generate data with different noise levels, use multi_sim.
 }
 \details{
-Damping sinusoids are generated with the equation: \eqn{y(t)=A . exp(-L.t) . sin(t)}.
-Where A represents the initial envelope amplitude and lambda the decay constant. damp_params is of the form: c(A,L)
+Damping sinusoids are generated with the equation: \eqn{y(t)=A .
+  exp(-L.t) . sin(t)}. Where A represents the initial envelope amplitude and
+  lambda the decay constant. damp_params is of the form: c(A,L)
 
-sim_expodecay_lagged_stim simulates trajectories that arise from a "stimulation" (i.e. taking the trajectory to a fixed high-level).
-Relaxation after stimulation is an exponential decay following equation: \eqn{y(t) = A0 . exp(-t/T)}.
-Where A0 represents the initial level of the trajectory and T the desintegration rate.
+  sim_expodecay_lagged_stim simulates trajectories that arise from a
+  "stimulation" (i.e. taking the trajectory to a fixed high-level).
+  Relaxation after stimulation is an exponential decay following equation:
+  \eqn{y(t) = A0 . exp(-t/T)}. Where A0 represents the initial level of the
+  trajectory and T the desintegration rate.
 }
 \section{Functions}{
 \itemize{

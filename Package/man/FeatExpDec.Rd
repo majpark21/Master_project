@@ -15,9 +15,9 @@ FeatExpDec(y, end)
 slope of the linear regression, estimator of the decay rate.
 }
 \description{
-Estimate decay rate of the peak.
-Fit a linear model on the descending phase, using exponential decay model.
-The fit is performed betwenn peak maximum and til the index specified by end and is enforced to pass through peak maximum.
+Estimate decay rate of the peak. Fit a linear model on the descending phase,
+using exponential decay model. The fit is performed betwenn peak maximum and
+til the index specified by end and is enforced to pass through peak maximum.
 }
 \seealso{
 FeatHalfMaxDec
