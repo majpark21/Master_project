@@ -102,3 +102,45 @@ detect.peak <- function(x, window.size, what = "maxi") {
     return(out)
 }
 
+
+#' complete.time.series
+#'
+#' Add rows for missing measurements.
+#' @param data a data.table in long format with at least 4 columns:
+#' condition, label, time and measurement.
+#' @param cond.col column name for grouping. Typically an ID for experimental
+#'   conditions.
+#' @param lab.col column name for second grouping. Typically an ID for
+#'   trajectories. This ID can be shared between different conditions (first
+#'   grouping).
+#' @param time.col column name of time.
+#' @param time.vector numerical vector. Over which time should ALL time series
+#'   span? Missing times will be added to trajectory where it's not present.
+#' @param meas.col column name with measurements.
+#'
+#' @return A data.table with extra rows for missing measurements.
+#' @export
+#'
+#' @examples
+#' # Simulate 10 phase-shifted sinusoids with 3 different level of noises
+#' # ("experimental conditions", first grouping).
+#' x <- multi_sims(type = "ps", noises = c(0.2,0.4), n = 10)
+#' plot_sim(x)
+#' # Remove 50 random rows
+#' x[, row.nber := 1:nrow(x)] # For manually checking missing values
+#' row_to_del <- sample(1:nrow(x), size = 50, replace = F)
+#' row_to_keep <- setdiff(1:nrow(x), row_to_del)
+#' x <- x[row_to_keep]
+#' # Recreate the missing rows
+#' x_complete <- complete.time.series(data = x,
+#'  cond.col = "noise", lab.col = "variable",
+#'  time.col = "Time", time.vector = unique(x$Time),
+#'  meas.col = "value")
+#'
+complete.time.series <- function(data, cond.col, lab.col, time.col, time.vector, meas.col){
+  require(data.table)
+  temp <- CJ(unique(data[[cond.col]]), unique(data[[lab.col]]), time.vector)
+  names(temp) <- c(cond.col, lab.col, time.col)
+  out <- merge(temp, data, by = c(cond.col, lab.col, time.col), all.x = T)
+  return(out)
+}
