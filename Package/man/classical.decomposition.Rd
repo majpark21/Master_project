@@ -14,8 +14,8 @@ plot_decomposition(decomposition, main = "Time series decomposition")
 
 \item{period:}{number of time points in one cycle}
 
-\item{robust:}{if T, the median of all points of a cycle part are used to determined seasonal component;
-if F, the mean is used instead.}
+\item{robust:}{if T, the median of all points of a cycle part are used to
+determined seasonal component; if F, the mean is used instead.}
 }
 \value{
 a 3xn numeric matrix, with column trend, season and remainder
@@ -26,10 +26,11 @@ y(t) = trend(t) + seasonal(t) + remainder(t)
 }
 \details{
 Trends is determined using a rolling mean with window width corresponding to
-the signal period, extremities are padded with linear interpolation from the first and last 2 measures.
+the signal period, extremities are padded with linear interpolation from the
+first and last 2 measures.
 
-Season is determined by using the mean or the median of all points corresponding to a
-given part of a cycle, see robust.
+Season is determined by using the mean or the median of all points
+corresponding to a given part of a cycle, see robust.
 }
 \section{Functions}{
 \itemize{

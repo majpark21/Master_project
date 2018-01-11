@@ -1,16 +1,23 @@
 #' myNorm
 #'
-#' Returns original dt with an additional column with normalized quantity. Normalisation is based on part of the trajectory.
-#' @param in.dt data.table, contain a column for: time, measurement(, grouping columns like object label)
+#' Returns original dt with an additional column with normalized quantity.
+#' Normalisation is based on part of the trajectory.
+#' @param in.dt data.table, contain a column for: time, measurement(, grouping
+#'   columns like object label)
 #' @param in.meas.col character, name of column to be normalised.
 #' @param in.rt.col character, name of the column with time (or index)
 #' @param in.rt.min numeric, start time of normalization period.
 #' @param in.rt.max numeric, end time of normalization period.
-#' @param in.by.cols character vector with 'by' columns to calculate normalisation per group if NULL, no grouping is done
-#' @param in.robust logical, whether robust measures should be used (median instead of mean, mad instead of sd).
-#' @param in.type type of normalization: 'z.score' or 'mean' (fi.e. old change w.r.t. mean)
+#' @param in.by.cols character vector with 'by' columns to calculate
+#'   normalisation per group if NULL, no grouping is done
+#' @param in.robust logical, whether robust measures should be used (median
+#'   instead of mean, mad instead of sd).
+#' @param in.type type of normalization: 'z.score' or 'mean' (fi.e. old change
+#'   w.r.t. mean)
 #'
-#' @return A data.table with an additional column with normalized quantity. The name of additional column is the same as in.meas.col but with ".norm" suffix added.
+#' @return A data.table with an additional column with normalized quantity. The
+#'   name of additional column is the same as in.meas.col but with ".norm"
+#'   suffix added.
 #' @export
 #'
 myNorm <- function(in.dt,

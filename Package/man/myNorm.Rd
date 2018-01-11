@@ -9,7 +9,8 @@ myNorm(in.dt, in.meas.col, in.rt.col = "RealTime", in.rt.min = 10,
   in.type = "z.score")
 }
 \arguments{
-\item{in.dt}{data.table, contain a column for: time, measurement(, grouping columns like object label)}
+\item{in.dt}{data.table, contain a column for: time, measurement(, grouping
+columns like object label)}
 
 \item{in.meas.col}{character, name of column to be normalised.}
 
@@ -19,15 +20,21 @@ myNorm(in.dt, in.meas.col, in.rt.col = "RealTime", in.rt.min = 10,
 
 \item{in.rt.max}{numeric, end time of normalization period.}
 
-\item{in.by.cols}{character vector with 'by' columns to calculate normalisation per group if NULL, no grouping is done}
+\item{in.by.cols}{character vector with 'by' columns to calculate
+normalisation per group if NULL, no grouping is done}
 
-\item{in.robust}{logical, whether robust measures should be used (median instead of mean, mad instead of sd).}
+\item{in.robust}{logical, whether robust measures should be used (median
+instead of mean, mad instead of sd).}
 
-\item{in.type}{type of normalization: 'z.score' or 'mean' (fi.e. old change w.r.t. mean)}
+\item{in.type}{type of normalization: 'z.score' or 'mean' (fi.e. old change
+w.r.t. mean)}
 }
 \value{
-A data.table with an additional column with normalized quantity. The name of additional column is the same as in.meas.col but with ".norm" suffix added.
+A data.table with an additional column with normalized quantity. The
+  name of additional column is the same as in.meas.col but with ".norm"
+  suffix added.
 }
 \description{
-Returns original dt with an additional column with normalized quantity. Normalisation is based on part of the trajectory.
+Returns original dt with an additional column with normalized quantity.
+Normalisation is based on part of the trajectory.
 }
