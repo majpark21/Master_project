@@ -127,36 +127,6 @@ FeatMaxAmplitude <- function(y, basal = min(y)){
 
 #### FWHM Features ####
 
-#' mySpline
-#'
-#' Interpolate points of a trajectory by spline. Returns the interpolated points
-#' along with the data in a single trajectory.
-#' @param x,y vectors giving the coordinates of the points to be interpolated.
-#' @param n interpolation takes place at n equally spaced points spanning the
-#'   interval [xmin, xmax]
-#'
-#' @details Spline interpolation is made according to stats::spline. See doc for
-#'   details and default.
-#' @return A list containing components x and y which give the ordinates where
-#'   interpolation took place and the interpolated values.
-#' @export
-#'
-#' @examples
-#' x <- sin(seq(0,5,0.75))
-#' x_spline <- mySpline(seq_along(x), x, 3*length(x))
-#' plot(seq_along(x), x)
-#' plot(x_spline$x, x_spline$y, type = "b")
-#'
-mySpline <- function(x, y, n){
-  fit <- spline(x, y, n)
-  x2 <- c(x, fit$x)
-  y2 <- c(y, fit$y)
-  y2 <- y2[order(x2)]
-  x2 <- x2[order(x2)]
-  return(list(x = x2, y = y2))
-}
-
-
 #' Find Full Width at Half maximum by spline interpolation
 #'
 #' @param x numeric, typically time vector

@@ -16,5 +16,6 @@ Imports:
     dtw,
     ggbiplot,
     ggplot2,
-    heatmap3
+    heatmap3,
+    zoo
 RoxygenNote: 6.0.1
