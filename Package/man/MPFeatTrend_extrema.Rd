@@ -19,12 +19,22 @@ should be performed on maxima or minima of peaks.}
 Median-Based Linear Models are used, see ?mblm::mblm}
 }
 \value{
-A list of 2. $trend comprises the fit object
+A list of 4.
+\itemize{
+ \item $trend, slope of the linear model
+ \item $model, the full linear model
+ \item $extremes, x extrema values and their index
+ \item $type, type of extrema, "mini" or "maxi"
+ }
 }
 \description{
 Isolate local extrema and perform a linear regression.
 Aimed at at giving an estimation of long-term trend in multi-peak signals.
 }
 \examples{
+x <- sim_phase_shifted_with_fixed_trend(n = 1, noise = 0, slope = 0.1)
+x.trend <- MPFeatTrend_extrema(x = x$value, window.size = 5, what = "maxi")
+plot(x$value, type = "b")
+abline(x.trend$model, col = "blue", lwd = 2, lty = "dashed")
 
 }
