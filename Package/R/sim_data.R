@@ -35,6 +35,7 @@
 #' @return a data.table containing the trajectories in long format in 4 columns.
 #'   "variable" indicates the ID of the trajectory. IDs are named V1, V2, ...,
 #'   Vn for each level of noise.
+#' @import data.table
 #' @export
 #'
 #' @examples
@@ -157,6 +158,7 @@ sim_phase_shifted <- function(n, noise, freq = 0.2, end = 50){
 #'   c(initial amplitude, decay rate). Used in sim_phase_shifted_damped and
 #'   sim_noisy_amplitude_damped. See details.
 #' @describeIn sim_phase_shifted Damped Phase-Shifted sinusoids (chirp).
+#' @export
 sim_phase_shifted_damped <- function(n, noise, damp_params, freq = 0.2, end = 50){
   require(data.table)
   # Create a matrix of shifted times
@@ -182,11 +184,12 @@ sim_phase_shifted_damped <- function(n, noise, damp_params, freq = 0.2, end = 50
 #' @param slope numeric, slope of linear trend, i.e. change of mean value per
 #'   unit of time.
 #' @describeIn sim_phase_shifted Phase-Shifted sinusoids with linear trend.
+#' @export
 sim_phase_shifted_with_fixed_trend <- function(n, noise, slope, freq = 0.2, end = 50){
   # Add a trend, i.e. a linear increase or decrease, to simulations
   # See sim_phase_shifted for arguments. Slope indicates the slope of the trend
-
-  sins <- sim_phase_shifted(n, noise, freq, end, return.wide = F)
+  require(data.table)
+  sins <- sim_phase_shifted(n, noise, freq, end)
   trend_vec <- unique(sins$Time)
   trend_vec <- trend_vec * slope
   sins[, value := value + trend_vec, by = .(variable)]
@@ -195,7 +198,9 @@ sim_phase_shifted_with_fixed_trend <- function(n, noise, slope, freq = 0.2, end 
 
 
 #' @describeIn sim_phase_shifted Sinusoids with Gaussian white noise in amplitude.
+#' @export
 sim_noisy_amplitude <- function(n, noise, freq = 0.2, end = 50){
+  require(data.table)
   # Create a matrix of times and noise
   tvec <- seq(0, end-1, by = freq)
   time_matrix <- matrix(tvec, nrow = length(tvec), ncol = n)
@@ -216,6 +221,7 @@ sim_noisy_amplitude <- function(n, noise, freq = 0.2, end = 50){
 
 
 #' @describeIn sim_phase_shifted Damped sinusoids with Gaussian white noise in amplitude.
+#' @export
 sim_noisy_amplitude_damped <- function(n, noise, damp_params, freq = 0.2, end = 50){
   require(data.table)
   # Create a matrix of times and noise
@@ -242,7 +248,9 @@ sim_noisy_amplitude_damped <- function(n, noise, damp_params, freq = 0.2, end = 
 #' @param lambda Desintegration rate. Used in sim_expodecay_lagged_stim only.
 #'   See details.
 #' @describeIn sim_phase_shifted Lagged Exponential Decays.
+#' @export
 sim_expodecay_lagged_stim <- function(n, noise, interval.stim = 5, lambda = 0.2, freq = 0.2, end = 50){
+  require(data.table)
   # Time vector
   tvec <- seq(0, end-1, by = freq)
   # Matrix with stimulation times

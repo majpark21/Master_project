@@ -11,11 +11,11 @@ Description:
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-Imports:
-    data.table,
+Imports: data.table,
     dtw,
     ggbiplot,
     ggplot2,
     heatmap3,
+    mblm,
     zoo
 RoxygenNote: 6.0.1

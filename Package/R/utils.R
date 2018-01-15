@@ -70,7 +70,7 @@ rollex <- function(x, k = 5) {
 
 #' detect.peak
 #'
-#' Detect peaks by identifying local maxima in a rolling window.
+#' Detect peaks by identifying local maxima/minima in a rolling window.
 #' @param x numerical vector
 #' @param window.size integer, width of rolling window.
 #' @param what character indicating whether maxima or minima should be looked
@@ -90,7 +90,7 @@ detect.peak <- function(x, window.size, what = "maxi") {
     require(zoo)
     if (window.size%%2 == 0)
         stop("window size must be odd")
-    if (!what %in% c("maxi", "mini", "both"))
+    if (!what %in% c("maxi", "mini"))
         stop("what must be one of c('maxi', 'mini')")
     middle <- ceiling(window.size/2)
     if (what == "maxi") {

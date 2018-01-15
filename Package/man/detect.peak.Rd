@@ -19,7 +19,7 @@ A logical vector. TRUE indicates a local maxima/minima. NAs are
   padded at the extremeties to keep same length as x.
 }
 \description{
-Detect peaks by identifying local maxima in a rolling window.
+Detect peaks by identifying local maxima/minima in a rolling window.
 }
 \examples{
 x <- sin(seq(0,25,0.1))
