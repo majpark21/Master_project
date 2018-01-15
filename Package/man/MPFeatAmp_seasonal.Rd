@@ -22,5 +22,8 @@ The difference between maximum and minimum of the seasonal component.
 \description{
 Decompose signal with classical decomposition and returns amplitude of the
 seasonal component.
-Aims at at giving an estimation of peak amplitude in oscillating signal.
+Aims at giving an estimation of peak amplitude in oscillating signal.
+}
+\seealso{
+MPFeatAmp_euclidmean, MPFeatAmp_variation
 }

@@ -17,5 +17,8 @@ The Euclidean distance between x and its rolling mean.
 \description{
 Compute Euclidean distance between a signal and its rolling mean.
 Rolling mean is extended at extremeties by linear extrapolation, see ?rollex.
-Aims at at giving an estimation of peak amplitude in oscillating signal.
+Aims at giving an estimation of peak amplitude in oscillating signal.
+}
+\seealso{
+MPFeatAmp_seasonal, MPFeatAmp_variation
 }

@@ -29,7 +29,7 @@ A list of 4.
 }
 \description{
 Isolate local extrema and perform a linear regression.
-Aims at at giving an estimation of long-term trend in multi-peak signals.
+Aims at giving an estimation of long-term trend in multi-peak signals.
 }
 \examples{
 x <- sim_phase_shifted_with_fixed_trend(n = 1, noise = 0, slope = 0.1)

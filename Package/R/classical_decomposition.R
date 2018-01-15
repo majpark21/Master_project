@@ -9,9 +9,9 @@
 #'
 #' Season is determined by summarizing points "period-wise". Specifically,
 #' let's consider a signal, which has 5 periods, each composed of 15 points.
-#' The1st point of a season is determined by taking the mean (or median if
-#' robust=TRUE) of all the 15 1st points in periods. Once all 15 points
-#' have been summarized, the pattern is repeated 5 times to form the
+#' The 1st point of a season is determined by taking the mean (or median if
+#' robust=TRUE) of the 1st point of each of the 5 periods. Once all 15 points
+#' have been summarized, this 'unit season' is repeated 5 times to form the
 #' seasonal component.
 #'
 #' @param ts: a time series or numerical vector

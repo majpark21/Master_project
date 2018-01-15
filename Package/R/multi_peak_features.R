@@ -5,7 +5,7 @@
 #' MPFeatTrend_extrema
 #'
 #' Isolate local extrema and perform a linear regression.
-#' Aims at at giving an estimation of long-term trend in multi-peak signals.
+#' Aims at giving an estimation of long-term trend in multi-peak signals.
 #'
 #' @param x a numerical vector.
 #' @param window.size integer, width of window for maxima detection.
@@ -53,7 +53,7 @@ MPFeatTrend_extrema <- function(x, window.size, what, robust = FALSE){
 #'
 #' Smooth by rolling mean and perform linear regression.
 #' Rolling mean is extended at extremeties by linear extrapolation, see ?rollex.
-#' Aims at at giving an estimation of long-term trend in multi-peak signals.
+#' Aims at giving an estimation of long-term trend in multi-peak signals.
 #'
 #' @param x a numerical vector.
 #' @param window.size integer, width of window for rolling mean.
@@ -74,7 +74,6 @@ MPFeatTrend_extrema <- function(x, window.size, what, robust = FALSE){
 #' lines(x.roll, col ="red", lwd = 2, lty = "dashed")
 #' x.trend <- MPFeatTrend_rollmean(x = x$value, window.size = width)
 #' abline(x.trend$model, col = "blue", lwd = 2, lty = "dashed")
-#' @
 #'
 MPFeatTrend_rollmean <- function(x, window.size, robust = FALSE){
   require(mblm)
@@ -89,7 +88,6 @@ MPFeatTrend_rollmean <- function(x, window.size, robust = FALSE){
 }
 
 
-
 ############################
 # Analysis of oscillations #
 ############################
@@ -98,12 +96,13 @@ MPFeatTrend_rollmean <- function(x, window.size, robust = FALSE){
 #'
 #' Compute Euclidean distance between a signal and its rolling mean.
 #' Rolling mean is extended at extremeties by linear extrapolation, see ?rollex.
-#' Aims at at giving an estimation of peak amplitude in oscillating signal.
+#' Aims at giving an estimation of peak amplitude in oscillating signal.
 #' @param x a numerical vector.
 #' @param window.size integer, width of window for rolling mean.
 #'
 #' @return The Euclidean distance between x and its rolling mean.
 #' @export
+#' @seealso MPFeatAmp_seasonal, MPFeatAmp_variation
 #'
 MPFeatAmp_euclidmean <- function(x, window.size){
   return(sqrt(sum( (x - rollex(x, window.size) )^2 )))
@@ -114,7 +113,7 @@ MPFeatAmp_euclidmean <- function(x, window.size){
 #'
 #' Decompose signal with classical decomposition and returns amplitude of the
 #' seasonal component.
-#' Aims at at giving an estimation of peak amplitude in oscillating signal.
+#' Aims at giving an estimation of peak amplitude in oscillating signal.
 #' @param x a numerical vector.
 #' @param window.size integer, width of window for rolling mean used to extract
 #' the trend component. See ?classical.decomposition.
@@ -124,6 +123,7 @@ MPFeatAmp_euclidmean <- function(x, window.size){
 #'
 #' @return The difference between maximum and minimum of the seasonal component.
 #' @export
+#' @seealso MPFeatAmp_euclidmean, MPFeatAmp_variation
 #'
 MPFeatAmp_seasonal <- function(x, window.size, robust = TRUE){
   x.decomp <- classical.decomposition(x, window.size, robust = robust)
@@ -131,7 +131,32 @@ MPFeatAmp_seasonal <- function(x, window.size, robust = TRUE){
 }
 
 
-
+#' MPFeatAmp_variation
+#'
+#' Decompose signal with classical decomposition and returns mean of the
+#' (trimmed) absolute remainder component.
+#' Aims at at giving an estimation of the variation of peak amplitudes
+#' in oscillating signal.
+#' @param x a numerical vector.
+#' @param window.size integer, width of window for rolling mean used to extract
+#' the trend component. See ?classical.decomposition.
+#' @param trim optional. Gives the minimum absolute value of remainder to be
+#' considered.
+#' @param robust logical. If TRUE, seasonal component is estimated by taking
+#' the median of values at each stage of a season. If FALSE, uses mean.
+#' See ?classical.decomposition.
+#'
+#' @return The mean (trimmed) absolute remainder.
+#' @export
+#' @seealso MPFeatAmp_euclidmean, MPFeatAmp_seasonal
+#'
+MPFeatAmp_variation <- function(x, window.size, trim = NULL, robust = TRUE){
+  x.decomp <- classical.decomposition(x, window.size, robust = robust)
+  x.remain <- x.decomp["remainder"]
+  x.remain <- abs(x.remain)
+  if(!is.null(trim)) x.remain <- x.remain[x.remain >= trim]
+  return(mean(x.remain))
+}
 
 
 

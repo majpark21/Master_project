@@ -21,7 +21,7 @@ $trend, slope of the linear model.
 \description{
 Smooth by rolling mean and perform linear regression.
 Rolling mean is extended at extremeties by linear extrapolation, see ?rollex.
-Aims at at giving an estimation of long-term trend in multi-peak signals.
+Aims at giving an estimation of long-term trend in multi-peak signals.
 }
 \examples{
 width <- 30
@@ -33,6 +33,7 @@ plot(x$value, type = "b")
 lines(x.roll, col ="red", lwd = 2, lty = "dashed")
 x.trend <- MPFeatTrend_rollmean(x = x$value, window.size = width)
 abline(x.trend$model, col = "blue", lwd = 2, lty = "dashed")
+
 }
 \seealso{
 MPFeatTrend_extrema
