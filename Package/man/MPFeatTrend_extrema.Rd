@@ -7,7 +7,7 @@
 MPFeatTrend_extrema(x, window.size, what, robust = FALSE)
 }
 \arguments{
-\item{x}{a numerical vector. Trajectory with multiple peaks.}
+\item{x}{a numerical vector.}
 
 \item{window.size}{integer, width of window for maxima detection.
 See ?detect.peak.}
@@ -29,7 +29,7 @@ A list of 4.
 }
 \description{
 Isolate local extrema and perform a linear regression.
-Aimed at at giving an estimation of long-term trend in multi-peak signals.
+Aims at at giving an estimation of long-term trend in multi-peak signals.
 }
 \examples{
 x <- sim_phase_shifted_with_fixed_trend(n = 1, noise = 0, slope = 0.1)

@@ -5,9 +5,9 @@
 #' MPFeatTrend_extrema
 #'
 #' Isolate local extrema and perform a linear regression.
-#' Aimed at at giving an estimation of long-term trend in multi-peak signals.
+#' Aims at at giving an estimation of long-term trend in multi-peak signals.
 #'
-#' @param x a numerical vector. Trajectory with multiple peaks.
+#' @param x a numerical vector.
 #' @param window.size integer, width of window for maxima detection.
 #'  See ?detect.peak.
 #' @param what character, one of "minima" or "maxima". Define whether regression
@@ -23,6 +23,7 @@
 #'  \item $type, type of extrema, "mini" or "maxi"
 #'  }
 #' @export
+#' @seealso MPFeatTrend_rollmean
 #'
 #' @examples
 #' x <- sim_phase_shifted_with_fixed_trend(n = 1, noise = 0, slope = 0.1)
@@ -46,6 +47,48 @@ MPFeatTrend_extrema <- function(x, window.size, what, robust = FALSE){
     return(list(trend=fit$coefficients[2], model=fit, extremes=extr.x, type=what))
   }
 }
+
+
+#' MPFeatTrend_rollmean
+#'
+#' Smooth by rolling mean and perform linear regression.
+#' Rolling mean is extended at extremeties by linear extrapolation, see ?rollex.
+#' Aims at at giving an estimation of long-term trend in multi-peak signals.
+#'
+#' @param x a numerical vector.
+#' @param window.size integer, width of window for rolling mean.
+#' @param robust logical. If TRUE perform robusts linear regression.
+#' Median-Based Linear Models are used, see ?mblm::mblm
+#'
+#' @return A list of 2: $model, the full linear model;
+#' $trend, slope of the linear model.
+#' @export
+#' @seealso MPFeatTrend_extrema
+#' @examples
+#' width <- 30
+#' x <- sim_phase_shifted_with_fixed_trend(n = 1, noise = 0, slope = 0.1)
+#' # Rolling mean extended by linear extrapolation.
+#' # This is also performed in MPFeatTrend_rollmean.
+#' x.roll <- rollex(x$value, width)
+#' plot(x$value, type = "b")
+#' lines(x.roll, col ="green", lwd = 2, lty = "dashed")
+#' x.trend <- MPFeatTrend_rollmean(x = x$value, window.size = width)
+#' abline(x.trend$model, col = "blue", lwd = 2, lty = "dashed")
+#'
+MPFeatTrend_rollmean <- function(x, window.size, robust = FALSE){
+  require(mblm)
+  x.roll <- rollex(x, window.size)
+  if(robust){
+    fit <- mblm(x ~ seq_along(x))
+    return(list(trend=fit$coefficients[2], model = fit))
+  } else {
+    fit <- lm(x ~ seq_along(x))
+    return(list(trend=fit$coefficients[2], model = fit))
+  }
+}
+
+
+
 
 
 
