@@ -24,14 +24,16 @@ Rolling mean is extended at extremeties by linear extrapolation, see ?rollex.
 Aims at at giving an estimation of long-term trend in multi-peak signals.
 }
 \examples{
-width <- 40
+width <- 30
 x <- sim_phase_shifted_with_fixed_trend(n = 1, noise = 0, slope = 0.1)
 # Rolling mean extended by linear extrapolation.
 # This is also performed in MPFeatTrend_rollmean.
 x.roll <- rollex(x$value, width)
 plot(x$value, type = "b")
-lines(x.roll, col ="green", lwd = 2, lty = "dashed")
+lines(x.roll, col ="red", lwd = 2, lty = "dashed")
 x.trend <- MPFeatTrend_rollmean(x = x$value, window.size = width)
 abline(x.trend$model, col = "blue", lwd = 2, lty = "dashed")
-
+}
+\seealso{
+MPFeatTrend_extrema
 }

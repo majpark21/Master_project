@@ -38,3 +38,6 @@ plot(x$value, type = "b")
 abline(x.trend$model, col = "blue", lwd = 2, lty = "dashed")
 
 }
+\seealso{
+MPFeatTrend_rollmean
+}

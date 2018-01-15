@@ -71,9 +71,10 @@ MPFeatTrend_extrema <- function(x, window.size, what, robust = FALSE){
 #' # This is also performed in MPFeatTrend_rollmean.
 #' x.roll <- rollex(x$value, width)
 #' plot(x$value, type = "b")
-#' lines(x.roll, col ="green", lwd = 2, lty = "dashed")
+#' lines(x.roll, col ="red", lwd = 2, lty = "dashed")
 #' x.trend <- MPFeatTrend_rollmean(x = x$value, window.size = width)
 #' abline(x.trend$model, col = "blue", lwd = 2, lty = "dashed")
+#' @
 #'
 MPFeatTrend_rollmean <- function(x, window.size, robust = FALSE){
   require(mblm)
@@ -86,6 +87,53 @@ MPFeatTrend_rollmean <- function(x, window.size, robust = FALSE){
     return(list(trend=fit$coefficients[2], model = fit))
   }
 }
+
+
+
+############################
+# Analysis of oscillations #
+############################
+
+#' MPFeatAmp_euclidmean
+#'
+#' Compute Euclidean distance between a signal and its rolling mean.
+#' Rolling mean is extended at extremeties by linear extrapolation, see ?rollex.
+#' Aims at at giving an estimation of peak amplitude in oscillating signal.
+#' @param x a numerical vector.
+#' @param window.size integer, width of window for rolling mean.
+#'
+#' @return The Euclidean distance between x and its rolling mean.
+#' @export
+#'
+MPFeatAmp_euclidmean <- function(x, window.size){
+  return(sqrt(sum( (x - rollex(x, window.size) )^2 )))
+}
+
+
+#' MPFeatAmp_seasonal
+#'
+#' Decompose signal with classical decomposition and returns amplitude of the
+#' seasonal component.
+#' Aims at at giving an estimation of peak amplitude in oscillating signal.
+#' @param x a numerical vector.
+#' @param window.size integer, width of window for rolling mean used to extract
+#' the trend component. See ?classical.decomposition.
+#' @param robust logical. If TRUE, seasonal component is estimated by taking
+#' the median of values at each stage of a season. If FALSE, uses mean.
+#' See ?classical.decomposition.
+#'
+#' @return The difference between maximum and minimum of the seasonal component.
+#' @export
+#'
+MPFeatAmp_seasonal <- function(x, window.size, robust = TRUE){
+  x.decomp <- classical.decomposition(x, window.size, robust = robust)
+  return(max(x.decomp[,"seasonal"]) - min(x.decomp[,"seasonal"]))
+}
+
+
+
+
+
 
 
 
