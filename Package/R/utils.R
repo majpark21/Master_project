@@ -67,7 +67,6 @@ rollex <- function(x, k = 5) {
 }
 
 
-
 #' detect.peak
 #'
 #' Detect peaks by identifying local maxima/minima in a rolling window.
@@ -144,8 +143,6 @@ complete.time.series <- function(data, cond.col, lab.col, time.col, time.vector,
   out <- merge(temp, data, by = c(cond.col, lab.col, time.col), all.x = T)
   return(out)
 }
-
-
 
 
 #' get.period

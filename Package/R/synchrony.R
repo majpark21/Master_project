@@ -1,3 +1,122 @@
+#' synchrony.measures
+#'
+#' A set of measures for synchrony of (oscillating) trajectories.
+#' @param x,y a numerical vector
+#' @param window.size integer, size of the window used to compute
+#' rolling mean. The latter is also used to get the trend component
+#' in the classical decomposition.
+#' @param method.clip one of c("rollmean","decomposition"). If "rollmean"
+#' clipping is performed on x directly by comparing it to its
+#' rolling mean. If "decomposition", x is decomposed via classical
+#' decomposition (see ?classical.decomposition) and its seasonal
+#' component is clipped according to its sign.
+#' @param robust.decomp logical, whether classical decomposition should
+#' be performed in a robust way. Default to TRUE.
+#'
+#' @details
+#' Clipping method is robust to trends in the data, while correlations
+#' are not. See example.
+#' The clipping method aims at identifying ascending and
+#' descending phase in signals and to see if these phases align
+#' between two signals. Clipping transforms the signal in a binary
+#' signal (0 or 1). An overlap of these clipped signals is then
+#' returned. Rescaled between -1 (total asynchrony) and 1 (total
+#' synchrony) for consistence with correlations.
+#' @return A list of 4:
+#' \itemize{
+#'   \item $pearson: Pearson's correlation coefficient
+#'   \item $spearman: Spearman's rank-based correlation coefficient
+#'   \item $kendall: Kendall's rank-based correlation coefficient
+#'   \item $overlap.clip: Overlap of clipped trajectories. Clipping
+#'   performed according to method.clip.
+#' }
+#' @seealso cor, classical.decomposition
+#' @export
+#'
+#' @examples
+#' # Two phase-shifted sinusoids
+#' x <- sin(seq(0, 20, 0.5))
+#' y <- sin(seq(2, 22, 0.5))
+#' # Number of points per oscillations
+#' period <- get.period(x)
+#' # Rollmean method
+#' x.roll <- rollex(x, period)
+#' y.roll <- rollex(y, period)
+#' x.clip <- ifelse(x >= x.roll, 1, -1)
+#' y.clip <- ifelse(y >= y.roll, 1, -1)
+#' # Visualize
+#' par(mfrow=c(2,1))
+#' plot(x, type = "b", main = "Raw trajectory and rolling mean")
+#' lines(x.roll, lty = "dashed", col = "darkgreen", lwd = 2)
+#' lines(x.clip, type = "s", col = "blue")
+#' plot(y, type = "b")
+#' lines(y.roll, lty = "dashed", col = "darkgreen", lwd = 2)
+#' lines(y.clip, type = "s", col = "red")
+#' synchrony.measures(x, y, period, "rollmean")
+#'
+#' # With linear trend
+#' x <- sin(seq(0, 20, 0.5))
+#' y <- sin(seq(2, 22, 0.5))
+#' trend <- seq(0,3,length.out=length(x))
+#' x <- x + trend
+#' y <- y + trend
+#' #' # Rollmean method
+#' x.roll <- rollex(x, period)
+#' y.roll <- rollex(y, period)
+#' x.clip <- ifelse(x >= x.roll, 3, 0)
+#' y.clip <- ifelse(y >= y.roll, 3, 0)
+#' # Visualize
+#' par(mfrow=c(2,1))
+#' plot(x, type = "b", main = "Raw trajectory and rolling mean")
+#' lines(x.roll, lty = "dashed", col = "darkgreen", lwd = 2)
+#' lines(x.clip, type = "s", col = "blue")
+#' plot(y, type = "b")
+#' lines(y.roll, lty = "dashed", col = "darkgreen", lwd = 2)
+#' lines(y.clip, type = "s", col = "red")
+#' synchrony.measures(x, y, period, "rollmean")
+#'
+synchrony.measures <- function(x, y, window.size, method.clip, robust.decomp = TRUE){
+  if(!method.clip %in% c("rollmean","decomposition")){
+    stop("method.clip must be one of c('rollmean','decomposition')")
+  }
+  # Correlations
+  cor.prs <- cor(x, y, method = "p")
+  cor.spr <- cor(x, y, method = "s")
+  cor.ken <- cor(x, y, method = "k")
+  # Clip by comparing x to rolling mean
+  if(method.clip=="rollmean"){
+    x.roll <- rollex(x, window.size)
+    y.roll <- rollex(y, window.size)
+    x.clip <- ifelse(x >= x.roll, 1, 0)
+    y.clip <- ifelse(y >= y.roll, 1, 0)
+  # Clip by comparing seasonal component to 0
+  } else if(method.clip=="decomposition"){
+    x.decomp <- classical.decomposition(x, window.size, robust.decomp)
+    y.decomp <- classical.decomposition(y, window.size, robust.decomp)
+    x.clip <- ifelse(x.decomp[,"seasonal"] >= 0, 1, 0)
+    y.clip <- ifelse(y.decomp[,"seasonal"] >= 0, 1, 0)
+  }
+  # Compute overlap between clipped trajectories. Scale on [-1,1]
+  overlap <- sum(x.clip==y.clip)/length(x.clip)
+  overlap <- 2*(overlap-1)+1
+  return(list(pearson = cor.prs,
+              spearman = cor.spr,
+              kendall = cor.ken,
+              overlap.clip = overlap))
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 all_pairwise_stats <- function(data, condition, label, measure, k_roll_mean = 5){
   # Compute all pairwise measures: DTW, overlap_clipping and correlations (Pearson, Spearman, Kendall)
   # The clipping of trajectories is performed as first step
