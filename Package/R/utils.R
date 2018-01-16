@@ -144,3 +144,30 @@ complete.time.series <- function(data, cond.col, lab.col, time.col, time.vector,
   out <- merge(temp, data, by = c(cond.col, lab.col, time.col), all.x = T)
   return(out)
 }
+
+
+
+
+#' get.period
+#'
+#' Compute power spectrum and returns period (1/frequency) at which
+#' its density is maximized.
+#' @param x a numerical vector.
+#'
+#' @return Period (1/frequency) of maximum power density
+#' @export
+#'
+#' @examples
+#' # Regular motif of length 15 repeated 5 times + Linear Trend
+#' x <- rep(1:15, 5)
+#' x <- x + seq(0, 10, length.out = length(x))
+#' x_period <- get.period(x)
+#' # Use the period to perform classical decomposition
+#' x_decomp <- classical.decomposition(ts = x, period = x_period)
+#' plot_decomposition(x_decomp)
+#'
+get.period <- function(x){
+  x.spec <- spectrum(x, plot = FALSE)
+  x.period <- round(1/x.spec$freq[which.max(x.spec$spec)])
+  return(x.period)
+}

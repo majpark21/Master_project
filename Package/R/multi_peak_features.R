@@ -47,8 +47,17 @@
 #' # Check by plotting extended rolling mean
 #' plot(x$value, type = "b")
 #' lines(seq_along(x$value), rollex(x$value, 31), col = "blue")
+#' legend("topleft", legend="rolling mean", fill="blue")
 #' # Extract features
 #' x.features <- MPFeatAllFeat(x$value, x.period, 5)
+#' # Visualize trend
+#' plot(x$value, type = "b")
+#' abline(a=0, b=x.features$trend.extrema, col = "blue")
+#' abline(a=0, b=x.features$trend.rollmean, col = "red")
+#' legend("topleft", legend=c("extrema", "rollmean"), fill=c("blue","red"),
+#' title = "Trend estimation method")
+#' # Visualize amplitude season
+#' plot_decomposition(classical.decomposition(x$value, x.period))
 #'
 MPFeatAllFeat <- function(x, window.rollmean, window.extrema,
                           extrema = "maxi", trim.remain = NULL,
