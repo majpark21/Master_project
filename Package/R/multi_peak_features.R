@@ -1,3 +1,72 @@
+################
+# All features #
+################
+
+#' MPFeatAllFeat
+#'
+#' Compute a set of features aimed at characterizing multipeak/oscillating
+#' signals.
+#' @param x a numerical vector.
+#' @param window.extrema integer, window width for detecting local extrema.
+#' Used for detecting peaks maxima or minima. See ?MPFeatTrend_extrema.
+#' @param window.rollmean integer, window width for classical decomposition.
+#' In case of multi-peak signal, should correspond to the number of
+#' points in one period. See ?classical.decomposition.
+#' @param extrema one of c("mini", "maxi"). Which extrema should be
+#' looked for and regressed on for trend estimation?
+#' See ?MPFeatTrend_extrema.
+#' @param trim.remain numeric, what is the minimum absolute remainder to
+#' be considered for computing amplitude variation? See ?MPFeatAmp_variation.
+#' @param robust.linreg logical, whether linear regression for trend estimation
+#' should be performed robustly. See ?mblm::mblm
+#' @param robust.decomp logical, whether classical decomposition for amplitude
+#' features should be performed robustly. See ?classical.decomposition.
+#'
+#' @return Alist of 5 features of x:
+#' \itemize{
+#'   \item $trend.extrema: slope of linear regression performed on
+#'   local extrema. Estimator for long-term trend.
+#'   \item $trend.rollmean: slope of linear regression performed on
+#'   rolling mean. Estimator for long-term trend.
+#'   \item $amplt.dist.euclid: Euc lidean distance between x and
+#'   its rolling mean. Not scaled! Estimator for oscillation amplitude.
+#'   \item $amplt.season: amplitude (max-min) of the seasonal
+#'   component. Estimator for oscillation amplitude.
+#'   \item $amplt.variation: mean remainder of classical decomposition,
+#'   after optionally trimming of small remainders.
+#'   Estimator for oscillation amplitude variation.
+#' }
+#' @export
+#'
+#' @examples
+#' # One sinusoid with linear trend
+#' x <- sim_phase_shifted_with_fixed_trend(n = 1, noise = 0, slope = 0.1)
+#' # How many points in one oscillation? Check maximum in power spectrum
+#' x.spec <- spectrum(x$value)
+#' x.period <- round(1/x.spec$freq[which.max(x.spec$spec)])
+#' # Check by plotting extended rolling mean
+#' plot(x$value, type = "b")
+#' lines(seq_along(x$value), rollex(x$value, 31), col = "blue")
+#' # Extract features
+#' x.features <- MPFeatAllFeat(x$value, x.period, 5)
+#'
+MPFeatAllFeat <- function(x, window.rollmean, window.extrema,
+                          extrema = "maxi", trim.remain = NULL,
+                          robust.linreg = FALSE, robust.decomp = TRUE){
+  trend_extr <- MPFeatTrend_extrema(x, window.extrema, extrema, robust.linreg)
+  trend_roll <- MPFeatTrend_rollmean(x, window.rollmean, robust.linreg)
+  amp_euclid <- MPFeatAmp_euclidmean(x, window.rollmean)
+  amp_season <- MPFeatAmp_seasonal(x, window.rollmean, robust.decomp)
+  amp_vartin <- MPFeatAmp_variation(x, window.rollmean, trim.remain, robust.decomp)
+  return(list(trend.extrema = trend_extr$trend,
+              trend.rollmean = trend_roll$trend,
+              amplt.dist.euclid = amp_euclid,
+              amplt.season = amp_season,
+              amplt.variation = amp_vartin))
+}
+
+
+
 #####################
 # Analysis of trend #
 #####################
@@ -152,16 +221,8 @@ MPFeatAmp_seasonal <- function(x, window.size, robust = TRUE){
 #'
 MPFeatAmp_variation <- function(x, window.size, trim = NULL, robust = TRUE){
   x.decomp <- classical.decomposition(x, window.size, robust = robust)
-  x.remain <- x.decomp["remainder"]
+  x.remain <- x.decomp[,"remainder"]
   x.remain <- abs(x.remain)
   if(!is.null(trim)) x.remain <- x.remain[x.remain >= trim]
   return(mean(x.remain))
 }
-
-
-
-
-
-
-
-
