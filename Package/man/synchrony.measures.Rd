@@ -72,14 +72,15 @@ y <- sin(seq(2, 22, 0.5))
 trend <- seq(0,3,length.out=length(x))
 x <- x + trend
 y <- y + trend
-#' # Rollmean method
+# Rollmean method
 x.roll <- rollex(x, period)
 y.roll <- rollex(y, period)
 x.clip <- ifelse(x >= x.roll, 3, 0)
 y.clip <- ifelse(y >= y.roll, 3, 0)
 # Visualize
 par(mfrow=c(2,1))
-plot(x, type = "b", main = "Raw trajectory and rolling mean")
+plot(x, type = "b", main = "Raw trajectory and rolling mean,
+with linear trend")
 lines(x.roll, lty = "dashed", col = "darkgreen", lwd = 2)
 lines(x.clip, type = "s", col = "blue")
 plot(y, type = "b")

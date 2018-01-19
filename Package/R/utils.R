@@ -168,3 +168,35 @@ get.period <- function(x){
   x.period <- round(1/x.spec$freq[which.max(x.spec$spec)])
   return(x.period)
 }
+
+
+
+#' circular.cc
+#'
+#' Cross-correlation with circular boundaries.
+#' @param x,y numerical vector.
+#'
+#' @return The vector of cross-correlation between x and y at all possible lags.
+#' @export
+#'
+#' @examples
+#' # Same pattern shifted by 2 time units
+#' x <- rep(c(0,1,2), 10)
+#' y <- rep(c(2,0,1), 10)
+#' xy.cc <- circular.cc(x, y)
+#' plot(names(xy.cc),xy.cc, type="h",
+#' xlab = "Lag", ylab = "Correlation")
+#' abline(h = 0, lty = "dashed", col = "blue")
+#'
+circular.cc <- function(x, y){
+  # Cross-correlation with circular boundaries
+  if(length(x) != length(y)) stop("Both vectors should be of the same length")
+  require(wavethresh)
+  out <- rep(NA, length(x))
+  lags <- 0:length(x)
+  for(i in 1:length(lags)){
+    out[i] <- cor(x = x, y = guyrot(y, lags[i]), method = "pearson")
+  }
+  names(out) <- lags
+  return(out)
+}
