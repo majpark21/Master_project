@@ -42,9 +42,29 @@ between large and small differences. The matrix of differences is then
 summarized by a list of functions.
 }
 \examples{
+# Example with normally distributed data (hierarchical clust doesn't really help)
 set.seed(7)
 x <- rnorm(n = 50)
 x <- matrix(x, nrow=5, ncol = 10)
 noise_ydiff(x, summary.fun= c("mean", "median", "sd", "colMeans"))
 
+
+# Example with 3 populations A-C:
+# A: oscillates around 10
+# B: oscillates around 5
+# C: oscillates around 1
+n <- 5
+len <- 20
+express <- expression(t(replicate(n, rnorm(len, mean = 1, sd = 0.1))))
+A <- eval(express); A <- A + 9
+B <- eval(express); B <- B + 4
+C <- eval(express)
+ABC <- rbind(A,B,C)
+rownames(ABC) <-  make.names(rep(c("A","B","C"), each = 5), unique = T)
+# See why hierarchical clust "normalize" the noise estimation:
+par(mfrow=c(1,2))
+noise_ydiff(ABC)
+# Shuffle rows
+ABC <- ABC[sample(1:nrow(ABC), replace = FALSE),]
+noise_ydiff(ABC) # Recover difference of unshuffled data
 }

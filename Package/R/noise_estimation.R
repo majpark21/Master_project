@@ -28,11 +28,31 @@
 #' @export
 #'
 #' @examples
+#' # Example with normally distributed data (hierarchical clust doesn't really help)
 #' set.seed(7)
 #' x <- rnorm(n = 50)
 #' x <- matrix(x, nrow=5, ncol = 10)
 #' noise_ydiff(x, summary.fun= c("mean", "median", "sd", "colMeans"))
 #'
+#'
+#' # Example with 3 populations A-C:
+#' # A: oscillates around 10
+#' # B: oscillates around 5
+#' # C: oscillates around 1
+#' n <- 5
+#' len <- 20
+#' express <- expression(t(replicate(n, rnorm(len, mean = 1, sd = 0.1))))
+#' A <- eval(express); A <- A + 9
+#' B <- eval(express); B <- B + 4
+#' C <- eval(express)
+#' ABC <- rbind(A,B,C)
+#' rownames(ABC) <-  make.names(rep(c("A","B","C"), each = 5), unique = T)
+#' # See why hierarchical clust "normalize" the noise estimation:
+#' par(mfrow=c(1,2))
+#' noise_ydiff(ABC)
+#' # Shuffle rows
+#' ABC <- ABC[sample(1:nrow(ABC), replace = FALSE),]
+#' noise_ydiff(ABC) # Recover difference of unshuffled data
 noise_ydiff <- function(x, summary.fun = c("mean", "median", "sd"),
                         power.diff = 1,
                         hcl.distance = "euclidean", hcl.linkage = "complete",
@@ -63,4 +83,26 @@ noise_ydiff <- function(x, summary.fun = c("mean", "median", "sd"),
   # 4) Report statistics
   out <- lapply(funs, function(f) f(x.diff))
   return(out)
+}
+
+
+#' noise_cv
+#'
+#' Coefficient of variation of each column of a matrix. Can be used to
+#' get a noise estimation at each time point in an ensemble of time series.
+#' @param x a numerical matrix. Individuals in rows, measurements in columns.
+#'
+#' @return A vector with coefficient of variations of each column.
+#' @export
+#'
+#' @examples
+#' x <- rnorm(20)
+#' x <- matrix(x, nrow = 4, ncol=5)
+#' noise_cv(x)
+#'
+noise_cv <- function(x){
+  means <- colMeans(x)
+  sds <- apply(x, 2, sd)
+  cvs <- sds/means
+  return(cvs)
 }

@@ -107,7 +107,48 @@ synchrony.measures <- function(x, y, window.size, method.clip, robust.decomp = T
 }
 
 
-max.cc <- function()
+
+#' max.cc
+#'
+#' Get maximal cross-correlation between 2 numerical vectors. Only 1st position
+#' is returned.
+#' @param x, y numerical vector
+#' @param use.circular logical, whether to use circular cross-correlation.
+#' @param plot logical. If TRUE, plots the cross-correlation histogram.
+#' @param ... additional parameters for the cross-correlation if use.circular is FALSE.
+#'  Of particular interest is lag.max. See ?ccf.
+#'
+#' @return A list of 2. $corr contains the maximum of correlation and
+#' $lag the lag at which it was reached.
+#' @export
+#'
+#' @examples
+#' # 2 identical signals, shifted by a lag 3
+#' pattern <- c(0.25, 0.5, 0.75, 1)
+#' x <- rep(pattern, 10)
+#' y <- c(x[4:length(x)],x[1:3])
+#' par(mfrow=c(3,1))
+#' plot(x, type = "h", main = "x", ylim = c(-0.2,1.2))
+#' plot(y, type = "h", main = "y", ylim = c(-0.2,1.2))
+#' # With circular cc, correlation is strictly 1
+#' max_cc(x, y, use.circular = T, plot = T)
+#'
+max_cc <- function(x, y, use.circular = TRUE, plot = FALSE, ...){
+  if(use.circular){
+    cc <- circular.cc(x, y)
+    if(plot){
+      plot(names(cc), cc, type="h",
+           xlab = "Lag", ylab = "Correlation")
+      abline(h = 0, lty = "dashed")
+    }
+    max.indx <- which.max(cc)
+    return(list(corr=cc[max.indx], lag=as.numeric(names(cc[max.indx]))))
+  }else{
+    cc <- ccf(x, y, plot = plot, ...)
+    max.indx <- which.max(cc$acf)
+    return(list(corr=cc$acf[max.indx], lag=cc$lag[max.indx]))
+  }
+}
 
 
 
